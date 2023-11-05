@@ -9,10 +9,10 @@ from tqdm import tqdm
 
 from rank_bm25 import BM25Okapi
 import json
-
+import os
 
 class Item_Search_Module() :
-    def __init__(self, data_path, embedding_paths=None) :
+    def __init__(self, data_path, embedding_paths=None, root_save_path='./data') :
         with open(data_path, 'r', encoding='utf8') as f :
             self.data = json.load(f)
         self.item_list = self._preproces_data() ## [{id, company, product}]  
@@ -28,16 +28,16 @@ class Item_Search_Module() :
  
         if embedding_paths is None :
             self.embedding_dict = self.make_embeddings()
-            np.save('./data/sroberta_multitask.npy', self.embedding_dict['sroberta_multitask'])
+            np.save(os.path.join(root_save_path, 'sroberta_multitask.npy'), self.embedding_dict['sroberta_multitask'])
             #np.save('./data/sbert_nli.npy', sbert_nli_embedding)
             #np.save('./data/sroberta_nli.npy', sroberta_nli_embedding)
-            np.save('./data/sroberta_sts_embedding.npy', self.embedding_dict['sroberta_sts'])
+            np.save(os.path.join(root_save_path, 'sroberta_sts.npy'), self.embedding_dict['sroberta_sts'])
         else : 
             self.embedding_dict = {
                 'sroberta_multitask': np.load('./data/sroberta_multitask.npy', allow_pickle=True),
                 #'sbert_nli': np.load('./data/sbert_nli.npy', allow_pickle=True),
                 #'sroberta_nli': np.load('./data/sroberta_nli.npy', allow_pickle=True),
-                'sroberta_sts': np.load('./data/sroberta_sts_embedding.npy', allow_pickle=True)  
+                'sroberta_sts': np.load('./data/sroberta_sts.npy', allow_pickle=True)  
             }  
         
         self.cross_encoder = CrossEncoder('bongsoo/kpf-cross-encoder-v1')
@@ -131,8 +131,9 @@ class Item_Search_Module() :
         return score_name
 
 
-        
-
+def make_embeddings(data_path, root_save_path='./data') :
+    item_search_module = Item_Search_Module(data_path=data_path, root_save_path=root_save_path)
+    return
 
 
 if __name__ == '__main__' :
@@ -147,6 +148,9 @@ if __name__ == '__main__' :
     #    'sroberta_nli_embedding': sroberta_nli_embedding,
     #    'sroberta_sts_embedding': sroberta_sts_embedding,
     #}
+    print("make embedding")
+    make_embeddings(data_path='./data/products.json', root_save_path='./data')
+
     print("start test")
     item_search_module = Item_Search_Module(data_path='./data/products.json', embedding_paths=True)
 
