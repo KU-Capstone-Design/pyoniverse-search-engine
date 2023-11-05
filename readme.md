@@ -14,7 +14,7 @@ pip install rank_bm25
 pip install -r requirements.txt
 
 
-###install tensorflow for mac m1
+### install tensorflow for mac m1
 1. Install Miniforge3 for mac
 curl -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-arm64.sh
 chmod +x Miniforge3-MacOSX-arm64.sh
