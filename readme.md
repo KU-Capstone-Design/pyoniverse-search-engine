@@ -1,6 +1,8 @@
 ### 1
 pip install tensorflow
+
 pip install keras
+
 pip install --no-deps argument git+https://github.com/haven-jeon/PyKoSpacing.git
 
 ### 2
