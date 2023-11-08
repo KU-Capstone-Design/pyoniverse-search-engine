@@ -1,27 +1,24 @@
 import json
-import os
+import logging
 from pathlib import Path
+from typing import List
 
 import numpy as np
-import pytest
 from pykospacing import Spacing
-from rank_bm25 import BM25Okapi
-from sentence_transformers import CrossEncoder, SentenceTransformer
 from tqdm import tqdm
 
 
 class ItemSearchAI:
     def __init__(self, data_path: str, embedding_paths=None, root_save_path="./data"):
+        self.logger = logging.getLogger(__name__)
         self.__data_path = Path(data_path)
         if not self.__data_path.exists():
             raise RuntimeError(f"{self.__data_path} Not Found")
         if not self.__data_path.is_file():
             raise RuntimeError(f"{self.__data_path} Not File")
-        if not self.__data_path.suffix != "json":
+        if self.__data_path.suffix != ".json":
             raise RuntimeError(f"{self.__data_path} is not json format")
 
-        # with open(data_path, 'r', encoding='utf8') as f:
-        #     self.data = json.load(f)
         # self.item_list = self._preproces_data()  ## [{id, company, product}]
         # self.corpus = [instance['product'] for instance in self.item_list]
         # self.bm25 = BM25Okapi([self._lexical_tokenizer(doc) for doc in self.corpus])
@@ -60,18 +57,40 @@ class ItemSearchAI:
     def _lexical_tokenizer(self, sent):
         return sent.split(" ")
 
-    def _preprocess_data(self):
+    def preprocess_data(self) -> List[dict]:
+        """
+        @fields
+        self.__data_path: Json 형식의 임베딩될 데이터 파일 위치
+        @steps
+        1. 상품 제조 회사 찾기
+        2. 상품 임베딩을 위해 단어 공백 띄우기(맥락을 고려하기 위함)
+        @returns
+        [{"id": d["id"], "name": d["name"], "company": ...} for d in data]
+        """
+        self.logger.info("Load Data")
+        try:
+            with open(self.__data_path, "r") as fd:
+                data = json.load(fd)
+        except Exception:
+            raise RuntimeError(f"{self.__data_path} is invalid json")
+        if not data:
+            raise RuntimeError(f"{self.__data_path} is empty")
+        self.logger.info("Preprocess Data")
+        # Kospacing
         spacing = Spacing()
-        product_list = []  # dictionary list {id, company, product}
-        print("data preprocessing")
-        for id, instance in enumerate(tqdm(self.data)):
-            name = instance["name"]
-            p = name.find(")")
-            company = name[:p]
-            product = spacing(name[p + 1 :], ignore="none")
-
-            product_list.append({"id": id, "company": company, "product": product})
-        return product_list
+        response: List[dict] = []  # dictionary list {id, company, product}
+        for datum in tqdm(data):
+            p = datum["name"].find(")")
+            if p != -1:
+                company = datum["name"][:p]
+            else:
+                company = None
+            try:
+                spaced_name = spacing(datum["name"], ignore="none")
+            except Exception as e:
+                raise RuntimeError(e)
+            response.append({"id": datum["id"], "company": company, "product": spaced_name})
+        return response
 
     def make_embedding_one_model(self, model):
         embeddings = []
