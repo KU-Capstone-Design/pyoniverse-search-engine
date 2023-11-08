@@ -6,6 +6,7 @@ from typing import List, Tuple
 import numpy as np
 from pykospacing import Spacing
 from rank_bm25 import BM25Okapi
+from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 
@@ -19,7 +20,7 @@ class ItemSearchAI:
             raise RuntimeError(f"{self.__data_path} Not File")
         if self.__data_path.suffix != ".json":
             raise RuntimeError(f"{self.__data_path} is not json format")
-        # model 저장
+        # model과 corpus/embedding 함께 저장
         self.__lexical_models = {}
         self.__sentence_models = {}
 
@@ -89,26 +90,59 @@ class ItemSearchAI:
             response.append({"id": datum["id"], "company": company, "product": spaced_name})
         return response
 
-    def get_lexical_model(self, data: List[dict]) -> Tuple[BM25Okapi, List[str]]:
-        corpus = [d["product"] for d in data]
+    def get_bm250k_model(self, data: List[dict]) -> Tuple[BM25Okapi, List[str]]:
+        """
+        Lexical Model
+        :param data: [{"id": .., "company": .., "product": ...}]
+        :return: model, corpus
+        """
         if "bm250k" in self.__lexical_models:
-            model = self.__lexical_models["bm250k"]
+            model, corpus = self.__lexical_models["bm250k"]
         else:
+            corpus = [d["product"] for d in data]
             model = BM25Okapi([doc.split(" ") for doc in corpus])
+            self.__lexical_models["bm250k"] = (model, corpus)
         return model, corpus
 
-    def make_embedding_one_model(self, model):
+    def get_sroberta_multitask_model(self, data: List[dict]) -> Tuple[SentenceTransformer, List[dict]]:
+        """
+        Sentence Model
+        :param data: [{"id": .., "company": .., "product": ...}]
+        :return: model, embedding
+        """
+        if "sroberta_multitask" in self.__sentence_models:
+            model, embedding = self.__sentence_models["sroberta_multitask"]
+        else:
+            model = SentenceTransformer("jhgan/ko-sroberta-multitask")
+            embedding = self.__make_embedding(model, data)
+            self.__sentence_models["sroberta_multitask"] = (model, embedding)
+        return model, embedding
+
+    def get_sroberta_sts_model(self, data: List[dict]) -> Tuple[SentenceTransformer, List[dict]]:
+        """
+        Sentence Model
+        :param data: [{"id": .., "company": .., "product": ...}]
+        :return: model, embedding
+        """
+        if "sroberta_sts" in self.__sentence_models:
+            model, embedding = self.__sentence_models["sroberta_sts"]
+        else:
+            model = SentenceTransformer("jhgan/ko-sroberta-sts")
+            embedding = self.__make_embedding(model, data)
+            self.__sentence_models["sroberta_sts"] = (model, embedding)
+        return model, embedding
+
+    def __make_embedding(self, model: SentenceTransformer, data: List[dict]) -> List[dict]:
+        """
+        :param model: SentenceTransformer
+        :param data: [{"id": .., "company": .., "product": ...}]
+        :return: [{"embedding": ..., "id": ...}]
+        """
         embeddings = []
         print("bulid embedding")
-        for instance in tqdm(self.item_list):
-            embeddings.append({"embedding": model.encode(instance["product"]), "id": instance["id"]})
+        for datum in tqdm(data):
+            embeddings.append({"embedding": model.encode(datum["product"]), "id": datum["id"]})
         return embeddings
-
-    def make_embeddings(self):
-        embedding_dict = {}
-        for model_name, model in self.sentence_models.items():
-            embedding_dict[model_name] = self.make_embedding_one_model(model)
-        return embedding_dict
 
     def find_item_one_model(self, model, model_name, query, num_result=10):
         query_embedding = model.encode(query)
