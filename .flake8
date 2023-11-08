@@ -1,0 +1,14 @@
+[flake8]
+; McCabe Complexity 최대 허용값
+max-complexity = 10
+; 발생한 에러 수 및 통계 값 반환
+count = True
+statistics = True
+; 최대 줄 길이
+max-line-length=120
+; 오류 발생 지점 표시
+show-source = True
+; doctests 실행 및 검사
+doctests = True
+; 무시하는 경고
+ignore = F401,W503,E203,E731,F841,E402,F821,F811
