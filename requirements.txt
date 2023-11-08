@@ -96,3 +96,6 @@ tornado==6.3.2
 tqdm==4.66.1
 traitlets==5.7.1
 transformers==4.33.2
+
+pre-commit
+pytest
