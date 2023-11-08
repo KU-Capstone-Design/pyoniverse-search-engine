@@ -66,3 +66,14 @@ def test_preprocess_data_empty_file(env):
         assert False
     except RuntimeError:
         assert True
+
+
+def test_get_lexical_model_singleton(env):
+    # given
+    search_ai = ItemSearchAI(data_path="tests/data/products.json")
+    # when
+    data = search_ai.preprocess_data()
+    lexical_model, corpus = search_ai.get_lexical_model(data)
+    # then
+    assert lexical_model is search_ai.get_lexical_model(data)[0]
+    assert set(corpus) == set(d["name"] for d in data)

@@ -1,10 +1,11 @@
 import json
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 from pykospacing import Spacing
+from rank_bm25 import BM25Okapi
 from tqdm import tqdm
 
 
@@ -18,11 +19,10 @@ class ItemSearchAI:
             raise RuntimeError(f"{self.__data_path} Not File")
         if self.__data_path.suffix != ".json":
             raise RuntimeError(f"{self.__data_path} is not json format")
+        # model 저장
+        self.__lexical_models = {}
+        self.__sentence_models = {}
 
-        # self.item_list = self._preproces_data()  ## [{id, company, product}]
-        # self.corpus = [instance['product'] for instance in self.item_list]
-        # self.bm25 = BM25Okapi([self._lexical_tokenizer(doc) for doc in self.corpus])
-        #
         # self.sentence_models = {
         #     'sroberta_multitask': SentenceTransformer('jhgan/ko-sroberta-multitask'),
         #     # 'sbert_nli': SentenceTransformer('jhgan/ko-sbert-nli'),
@@ -53,9 +53,6 @@ class ItemSearchAI:
         # self.id2name_dict = {}
         # for instance in self.item_list:
         #     self.id2name_dict[instance['id']] = instance['product']
-
-    def _lexical_tokenizer(self, sent):
-        return sent.split(" ")
 
     def preprocess_data(self) -> List[dict]:
         """
@@ -91,6 +88,14 @@ class ItemSearchAI:
                 raise RuntimeError(e)
             response.append({"id": datum["id"], "company": company, "product": spaced_name})
         return response
+
+    def get_lexical_model(self, data: List[dict]) -> Tuple[BM25Okapi, List[str]]:
+        corpus = [d["product"] for d in data]
+        if "bm250k" in self.__lexical_models:
+            model = self.__lexical_models["bm250k"]
+        else:
+            model = BM25Okapi([doc.split(" ") for doc in corpus])
+        return model, corpus
 
     def make_embedding_one_model(self, model):
         embeddings = []
