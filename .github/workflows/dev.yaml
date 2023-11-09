@@ -39,7 +39,7 @@ jobs:
         shell: bash
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          DOCKER_IMAGE: pyoniverse-ai-engine
+          DOCKER_IMAGE: pyoniverse-search-engine
         run: |
           docker build -t $REGISTRY/$DOCKER_IMAGE:$STAGE .
           docker push $REGISTRY/$DOCKER_IMAGE:$STAGE
