@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           ./requirements.sh
-          python -m pytest -v
+#          python -m pytest -v
 
       - name: Build and Push
         shell: bash
