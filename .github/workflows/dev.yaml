@@ -1,0 +1,58 @@
+name: Deploy Batch
+on:
+  push:
+    branches: [ develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      STAGE: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Preload Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Test
+        shell: bash
+        run: |
+          ./requirements.sh
+          python -m pytest -v
+
+      - name: Build and Push
+        shell: bash
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          DOCKER_IMAGE: pyoniverse-search-engine
+        run: |
+          docker build -t $REGISTRY/$DOCKER_IMAGE:$STAGE .
+          docker push $REGISTRY/$DOCKER_IMAGE:$STAGE
+
+      - name: Deploy Alarm
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: C05NYKY1KS6
+          author_name: Github Action
+          fields: repo,commit,message,author,took,workflow
+          mention: here
+          if_mention: failure,cancelled
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()
