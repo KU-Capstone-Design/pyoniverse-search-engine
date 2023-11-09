@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 
 class EmbeddingAI:
-    def __init__(self, data_path: str = "resource/data", embedding_dir: str = "resource/embedding"):
+    def __init__(self, data_path: str, embedding_dir: str = "resource/embedding"):
         self.logger = logging.getLogger(__name__)
         self.__data_path = Path(data_path)
         if not self.__data_path.exists():
@@ -28,7 +28,8 @@ class EmbeddingAI:
         # embedding을 저장할 경로 저장
         self.__embedding_dir = Path(embedding_dir)
         if not self.__embedding_dir.exists():
-            raise RuntimeError(f"{self.__embedding_dir} Not Found")
+            # 새로운 폴더 생성
+            self.__embedding_dir.mkdir(parents=True, exist_ok=True)
         if not self.__embedding_dir.is_dir():
             raise RuntimeError(f"{self.__embedding_dir} Not Directory")
 
@@ -86,7 +87,6 @@ class EmbeddingAI:
         @returns
         [{"id": d["id"], "name": d["name"], "company": ...} for d in data]
         """
-        self.logger.info("Load Data")
         try:
             with open(self.__data_path, "r") as fd:
                 data = json.load(fd)
@@ -94,7 +94,6 @@ class EmbeddingAI:
             raise RuntimeError(f"{self.__data_path} is invalid json")
         if not data:
             raise RuntimeError(f"{self.__data_path} is empty")
-        self.logger.info("Preprocess Data")
         # Kospacing
         spacing = Spacing()
         response: List[dict] = []  # dictionary list {id, company, name}

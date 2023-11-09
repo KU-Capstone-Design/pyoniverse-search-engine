@@ -53,6 +53,7 @@ def test_init_invalid_data_path(env):
 def test_init_embedding_dir(env):
     try:
         EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
+        EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/create-new-folder")
         assert True
     except Exception:
         assert False
@@ -61,12 +62,6 @@ def test_init_embedding_dir(env):
 def test_init_embedding_dir_invalid(env):
     try:
         EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/data/products.json")
-        assert False
-    except Exception:
-        assert True
-
-    try:
-        EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/invalid")
         assert False
     except Exception:
         assert True
