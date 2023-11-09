@@ -72,7 +72,7 @@ class EmbeddingAI:
         self.logger.info("Preprocess Data")
         # Kospacing
         spacing = Spacing()
-        response: List[dict] = []  # dictionary list {id, company, product}
+        response: List[dict] = []  # dictionary list {id, company, name}
         for datum in tqdm(data):
             p = datum["name"].find(")")
             if p != -1:
@@ -83,17 +83,17 @@ class EmbeddingAI:
                 spaced_name = spacing(datum["name"], ignore="none")
             except Exception as e:
                 raise RuntimeError(e)
-            response.append({"id": datum["id"], "company": company, "product": spaced_name})
+            response.append({"id": datum["id"], "company": company, "name": spaced_name})
         return response
 
     def get_bm250k_model(self, data: List[dict]) -> str:
         """
         Lexical Model
-        :param data: [{"id": .., "company": .., "product": ...}]
+        :param data: [{"id": .., "company": .., "name": ...}]
         :return: model_name
         """
         if "bm250k" not in self.__lexical_models:
-            corpus = [{"embedding": d["product"], "id": d["id"]} for d in data]
+            corpus = [{"embedding": d["name"], "id": d["id"], "name": d["name"], "company": d["company"]} for d in data]
             model = BM25Okapi([doc["embedding"].split(" ") for doc in corpus])
             self.__lexical_models["bm250k"] = (model, corpus)
         return "bm250k"
@@ -101,7 +101,7 @@ class EmbeddingAI:
     def get_sroberta_multitask_model(self, data: List[dict]) -> str:
         """
         Sentence Model
-        :param data: [{"id": .., "company": .., "product": ...}]
+        :param data: [{"id": .., "company": .., "name": ...}]
         :return: model_name
         """
         if "sroberta_multitask" not in self.__sentence_models:
@@ -113,7 +113,7 @@ class EmbeddingAI:
     def get_sroberta_sts_model(self, data: List[dict]) -> str:
         """
         Sentence Model
-        :param data: [{"id": .., "company": .., "product": ...}]
+        :param data: [{"id": .., "company": .., "name": ...}]
         :return: model_name
         """
         if "sroberta_sts" not in self.__sentence_models:
@@ -125,13 +125,20 @@ class EmbeddingAI:
     def __make_embedding(self, model: SentenceTransformer, data: List[dict]) -> List[dict]:
         """
         :param model: SentenceTransformer
-        :param data: [{"id": .., "company": .., "product": ...}]
-        :return: [{"embedding": ..., "id": ...}]
+        :param data: [{"id": .., "company": .., "name": ...}]
+        :return: [{"embedding": ..., "id": ..., "name": ..., "company": ...}]
         """
         self.logger.info(f"Make embedding for {model}")
         embeddings = []
         for datum in tqdm(data):
-            embeddings.append({"embedding": model.encode(datum["product"]), "id": datum["id"]})
+            embeddings.append(
+                {
+                    "embedding": model.encode(datum["name"]),
+                    "id": datum["id"],
+                    "name": datum["name"],
+                    "company": datum["company"],
+                }
+            )
         return embeddings
 
     def save_embedding(self, model_name: str) -> str:
