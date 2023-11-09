@@ -103,8 +103,10 @@ def test_get_bm250k_model(env):
     data = embedding_ai.preprocess_data()
     model_name = embedding_ai.get_bm250k_model(data)
     # then
+    model_info = embedding_ai.get_model(model_name)
     assert embedding_ai.is_lexical_model(model_name)
-    assert set(d["name"] for d in data) == set(c["name"] for c in embedding_ai.lexical_models[model_name][1])
+    assert model_info["type"] == "lexical"
+    assert set(d["name"] for d in data) == set(c["name"] for c in model_info["model"][1])
 
 
 def test_get_sroberta_multitask_model(env):
@@ -114,8 +116,10 @@ def test_get_sroberta_multitask_model(env):
     data = embedding_ai.preprocess_data()
     model_name = embedding_ai.get_sroberta_multitask_model(data)
     # then
+    model_info = embedding_ai.get_model(model_name)
     assert embedding_ai.is_sentence_model(model_name)
-    assert set(d["id"] for d in data) == set(e["id"] for e in embedding_ai.sentence_models[model_name][1])
+    assert model_info["type"] == "sentence"
+    assert set(d["id"] for d in data) == set(e["id"] for e in model_info["model"][1])
 
 
 def test_sroberta_sts_model(env):
@@ -125,8 +129,10 @@ def test_sroberta_sts_model(env):
     data = embedding_ai.preprocess_data()
     model_name = embedding_ai.get_sroberta_sts_model(data)
     # then
+    model_info = embedding_ai.get_model(model_name)
     assert embedding_ai.is_sentence_model(model_name)
-    assert set(d["id"] for d in data) == set(e["id"] for e in embedding_ai.sentence_models[model_name][1])
+    assert model_info["type"] == "sentence"
+    assert set(d["id"] for d in data) == set(e["id"] for e in model_info["model"][1])
 
 
 def test_save_embedding(env):
@@ -149,3 +155,22 @@ def test_save_embedding_invalid_model(env):
         assert False
     except RuntimeError:
         assert True
+
+
+def test_embedding_integration(env):
+    # given
+    embedding_ai = EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
+    # when
+    result = embedding_ai.execute()
+    # then
+    for key, val in result.items():
+        if key == "lexical":
+            for model_name, embedding_saved_path in val.items():
+                assert embedding_ai.is_lexical_model(model_name)
+                assert Path(embedding_saved_path).exists()
+        elif key == "sentence":
+            for model_name, embedding_saved_path in val.items():
+                assert embedding_ai.is_sentence_model(model_name)
+                assert Path(embedding_saved_path).exists()
+        else:
+            assert False

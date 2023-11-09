@@ -1,8 +1,9 @@
 import json
 import logging
 import traceback
+from collections import defaultdict
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Literal
 
 import numpy as np
 from pykospacing import Spacing
@@ -31,13 +32,37 @@ class EmbeddingAI:
         if not self.__embedding_dir.is_dir():
             raise RuntimeError(f"{self.__embedding_dir} Not Directory")
 
-    @property
-    def lexical_models(self):
-        return self.__lexical_models
-
-    @property
-    def sentence_models(self):
-        return self.__sentence_models
+    def execute(self) -> Dict[Literal["lexical", "sentence"], Dict[str, str]]:
+        """
+        사용 가능한 모든 모델의 임베딩을 만들어 저장
+        @step
+        1. Data 전처리
+        2. lexical, sentence model & embedding 생성
+        3. embedding 저장
+        4. embedding 저장 경로 반환
+        :return: {"lexical": {model_name: embedding_path}, "sentence": {model_name: embedding_path}}
+        """
+        lexical_model_names = []
+        sentence_model_names = []
+        self.logger.info("Preprocess Data")
+        data = self.preprocess_data()
+        self.logger.info("Build lexical model")
+        model_name = self.get_bm250k_model(data)
+        lexical_model_names.append(model_name)
+        self.logger.info("Build sentence model")
+        model_name = self.get_sroberta_sts_model(data)
+        sentence_model_names.append(model_name)
+        model_name = self.get_sroberta_multitask_model(data)
+        sentence_model_names.append(model_name)
+        self.logger.info("Save Embedding")
+        result = defaultdict(dict)
+        for model_name in lexical_model_names:
+            saved_path = self.save_embedding(model_name)
+            result["lexical"][model_name] = saved_path
+        for model_name in sentence_model_names:
+            saved_path = self.save_embedding(model_name)
+            result["sentence"][model_name] = saved_path
+        return result
 
     def is_lexical_model(self, model_name: str) -> bool:
         """
@@ -162,3 +187,19 @@ class EmbeddingAI:
         else:
             raise RuntimeError(f"{model_name} not in lexical or sentence models")
         return str(saved_path)
+
+    def get_model(self, model_name: str) -> Dict[Literal["type", "model"], Any]:
+        """
+        model_name에 해당하는 모델의 타입과 모델 반환
+        :returns: {"type": lexical|sentence, "model": ...}
+        """
+        result: Dict[Literal["type", "model"], Any] = {}
+        if self.is_lexical_model(model_name):
+            result["type"] = "lexical"
+            result["model"] = self.__lexical_models[model_name]
+        elif self.is_sentence_model(model_name):
+            result["type"] = "sentence"
+            result["model"] = self.__sentence_models[model_name]
+        else:
+            raise RuntimeError(f"{model_name} is not lexical or sentence model")
+        return result
