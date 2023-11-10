@@ -103,10 +103,15 @@ class EmbeddingAI:
             else:
                 company = None
             try:
-                spaced_name = spacing(datum["name"], ignore="none")
+                # spaced_name이 없다면 새롭게 생성 - profile 결과로 spacing 연산의 비용이 크다.
+                if "spaced_name" not in datum:
+                    datum["spaced_name"] = spacing(datum["name"], ignore="none")
             except Exception as e:
                 raise RuntimeError(e)
-            response.append({"id": datum["id"], "company": company, "name": spaced_name})
+            response.append({"id": datum["id"], "company": company, "name": datum["spaced_name"]})
+        # update saved file
+        with open(self.__data_path, "w") as fd:
+            json.dump(data, fd, ensure_ascii=False)
         return response
 
     def get_bm250k_model(self, data: List[dict]) -> str:

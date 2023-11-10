@@ -76,11 +76,8 @@ def test_preprocess_data_empty_file(env):
     # given
     embedding_ai = EmbeddingAI(data_path="tests/resource/data/empty-products.json")
     # when & then
-    try:
+    with pytest.raises(RuntimeError):
         embedding_ai.preprocess_data()
-        assert False
-    except RuntimeError:
-        assert True
 
 
 def test_get_bm250k_model(env):
