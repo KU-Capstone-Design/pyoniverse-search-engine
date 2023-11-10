@@ -1,0 +1,17 @@
+Wrote profile results to profile_kospacing.py.lprof
+Timer unit: 1e-06 s
+
+Total time: 26.0098 s
+File: profiles/time/profile_kospacing.py
+Function: execute_kospace at line 15
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    15                                           @profile
+    16                                           def execute_kospace(data: list):
+    17                                               """
+    18                                               Spacing 연산 수행
+    19                                               :param data: products 데이터
+    20                                               """
+    21        10         46.0      4.6      0.0      spacing = Spacing()
+    22        10   26009739.0    3e+06    100.0      result = [spacing(d["name"], ignore="none") for d in data]

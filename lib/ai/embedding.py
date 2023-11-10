@@ -9,7 +9,6 @@ import numpy as np
 from pykospacing import Spacing
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
-from tqdm import tqdm
 
 
 class EmbeddingAI:
@@ -97,7 +96,7 @@ class EmbeddingAI:
         # Kospacing
         spacing = Spacing()
         response: List[dict] = []  # dictionary list {id, company, name}
-        for datum in tqdm(data):
+        for datum in data:
             p = datum["name"].find(")")
             if p != -1:
                 company = datum["name"][:p]
@@ -154,7 +153,7 @@ class EmbeddingAI:
         """
         self.logger.info(f"Make embedding for {model}")
         embeddings = []
-        for datum in tqdm(data):
+        for datum in data:
             embeddings.append(
                 {
                     "embedding": model.encode(datum["name"]),

@@ -1,8 +1,10 @@
 import json
+import logging
 import os
 import re
+from contextlib import contextmanager
 from pathlib import Path
-from typing import List
+from typing import List, Type
 
 import pytest
 
@@ -15,56 +17,46 @@ def env():
         os.chdir("..")
 
 
+@contextmanager
+def not_raises(exception: Type[Exception]):
+    try:
+        yield
+    except exception as e:
+        logging.error(f"Expected Exception is raised: {repr(e)}")
+        assert False
+    except Exception as e:
+        logging.error(f"Unexpected Exception is raised: {repr(e)}")
+        assert False
+    else:
+        assert True
+
+
 def test_init(env):
     # given
-    try:
-        embedding_ai = EmbeddingAI(
-            data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding"
-        )
-        assert True
-    except Exception:
-        assert False
+    with not_raises(RuntimeError):
+        EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
 
 
 def test_init_invalid_data_path(env):
     # given
-    try:
+    with pytest.raises(RuntimeError):
         # Invalid Path
         EmbeddingAI(data_path="tests/resource/data/invalid-path.json", embedding_dir="tests/resource/embedding")
-        assert False
-    except RuntimeError:
-        assert True
-
-    try:
         # Directory Path
         EmbeddingAI(data_path="tests/resource/data", embedding_dir="tests/resource/embedding")
-        assert False
-    except RuntimeError:
-        assert True
-
-    try:
-        # Not Json
+        # Invalid format
         EmbeddingAI(data_path="tests/resource/data/products.csv", embedding_dir="tests/resource/embedding")
-        assert False
-    except RuntimeError:
-        assert True
 
 
 def test_init_embedding_dir(env):
-    try:
+    with not_raises(RuntimeError):
         EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
         EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/create-new-folder")
-        assert True
-    except Exception:
-        assert False
 
 
 def test_init_embedding_dir_invalid(env):
-    try:
+    with pytest.raises(RuntimeError):
         EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/data/products.json")
-        assert False
-    except Exception:
-        assert True
 
 
 def test_preprocess_data(env):
