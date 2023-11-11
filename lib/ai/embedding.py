@@ -3,7 +3,7 @@ import logging
 import pickle
 from collections import namedtuple
 from pathlib import Path
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Tuple
 
 from pykospacing import Spacing
 from rank_bm25 import BM25Okapi
@@ -217,7 +217,7 @@ class EmbeddingAI:
             self.logger.info(f"Load embedding for {model_name} from {path}")
             return data
 
-    def get_model(self, model_name: str) -> Dict[Literal["type", "model"], Any]:
+    def get_model(self, model_name: str) -> Dict[Literal["type", "model"], Tuple[Any, List[Embedding]]]:
         """
         model_name에 해당하는 모델의 타입과 모델 반환
         :returns: {"type": lexical|sentence, "model": ...}
