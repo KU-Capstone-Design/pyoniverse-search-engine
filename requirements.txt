@@ -1,2 +1,4 @@
 pre-commit
 pytest
+memory_profiler
+line_profiler

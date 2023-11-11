@@ -1,7 +1,5 @@
 import argparse
 
-from lib.ai.search import SearchAI
-
 
 parser = argparse.ArgumentParser(
     prog="pyoniverse ai engine",

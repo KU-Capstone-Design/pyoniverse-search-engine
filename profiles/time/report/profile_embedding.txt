@@ -1,0 +1,30 @@
+Wrote profile results to profile_embedding.py.lprof
+Timer unit: 0.001 s
+
+Total time: 4.36396 s
+File: profiles/time/profile_embedding.py
+Function: execute_sroberta_multitask_model at line 221
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   221                                           @profile
+   222                                           def execute_sroberta_multitask_model(data: list):
+   223                                               """
+   224                                               embedding 수행
+   225                                               :param data: products 데이터
+   226                                               """
+   227        10       4364.0    436.4    100.0      embedding_ai.get_sroberta_multitask_model(data)
+
+Total time: 5.80186 s
+File: profiles/time/profile_embedding.py
+Function: execute_sroberta_sts_model at line 230
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   230                                           @profile
+   231                                           def execute_sroberta_sts_model(data: list):
+   232                                               """
+   233                                               embedding 수행
+   234                                               :param data: products 데이터
+   235                                               """
+   236        10       5801.9    580.2    100.0      embedding_ai.get_sroberta_sts_model(data)
