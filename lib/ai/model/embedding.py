@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
-@dataclass(kw_only=True)
+@dataclass
 class ModelMeta:
     """
     Model Meta 정보

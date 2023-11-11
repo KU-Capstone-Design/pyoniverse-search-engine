@@ -1,14 +1,15 @@
 import json
 import logging
-import traceback
+import pickle
 from collections import defaultdict, namedtuple
 from pathlib import Path
 from typing import Any, Dict, List, Literal
 
-import numpy as np
 from pykospacing import Spacing
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
+
+from lib.ai.model.common import Embedding
 
 
 class EmbeddingAI:
@@ -123,9 +124,9 @@ class EmbeddingAI:
         :return: model_name
         """
         if "bm250k" not in self.__lexical_models:
-            corpus = [{"embedding": d.name, "id": d.id, "name": d.name, "company": d.company} for d in data]
-            model = BM25Okapi([doc["embedding"].split(" ") for doc in corpus])
-            self.__lexical_models["bm250k"] = (model, corpus)
+            embeddings = [Embedding(embedding=d.name, id=d.id, name=d.name) for d in data]
+            model = BM25Okapi([doc.embedding.split(" ") for doc in embeddings])
+            self.__lexical_models["bm250k"] = (model, embeddings)
         return "bm250k"
 
     def get_sroberta_multitask_model(self, data: List["EmbeddingAI.Data"]) -> str:
@@ -160,7 +161,7 @@ class EmbeddingAI:
 
     def __make_embedding(
         self, model: SentenceTransformer, data: List["EmbeddingAI.Data"], model_name: str
-    ) -> List[dict]:
+    ) -> List[Embedding]:
         """
         :param model: SentenceTransformer
         :param data: [{"id": .., "company": .., "name": ...}]
@@ -172,16 +173,15 @@ class EmbeddingAI:
         except Exception as e:
             embeddings = []
         self.logger.info(f"Make embedding for {model}")
-        already_embedded = set(e["id"] for e in embeddings)
+        already_embedded = set(e.id for e in embeddings)
         for datum in data:
             if datum.id not in already_embedded:
                 embeddings.append(
-                    {
-                        "embedding": model.encode(datum.name),
-                        "id": datum.id,
-                        "name": datum.name,
-                        "company": datum.company,
-                    }
+                    Embedding(
+                        embedding=model.encode(datum.name),
+                        id=datum.id,
+                        name=datum.name,
+                    )
                 )
         return embeddings
 
@@ -190,36 +190,31 @@ class EmbeddingAI:
         :param model_name: 저장된 모델 이름
         :return: 저장 경로
         """
+        saved_path = self.get_embedding_path(model_name)
         if self.is_lexical_model(model_name):
-            corpus = self.__lexical_models[model_name][1]
-            saved_path = self.__embedding_dir / f"{model_name}.json"
-            with open(saved_path, "w") as fd:
-                json.dump(corpus, fd, ensure_ascii=False)
+            embeddings: List[Embedding] = self.__lexical_models[model_name][1]
         elif self.is_sentence_model(model_name):
-            embedding = self.__sentence_models[model_name][1]
-            saved_path = self.__embedding_dir / f"{model_name}.npy"
-            try:
-                np.save(str(saved_path), embedding)
-                self.logger.info(f"embedding for {model_name} is saved at {saved_path}")
-            except Exception as e:
-                self.logger.error(traceback.format_exc())
-                raise RuntimeError(f"{model_name} Not Saved")
+            embeddings: List[Embedding] = self.__sentence_models[model_name][1]
         else:
             raise RuntimeError(f"{model_name} not in lexical or sentence models")
+        with open(saved_path, "wb") as fd:
+            pickle.dump(embeddings, fd)
+        self.logger.info(f"embedding for {model_name} is saved at {saved_path}")
         return str(saved_path)
 
-    def get_embedding(self, model_name: str):
+    def get_embedding(self, model_name: str) -> List[Embedding]:
         """
         save_embedding으로 저장된 embedding 가져오기
         :return: embedded data
         """
-        path = self.__embedding_dir / f"{model_name}.npy"
+        path = self.get_embedding_path(model_name)
         try:
-            data = np.load(str(path), allow_pickle=True)
-            self.logger.info(f"Load embedding for {model_name} from {path}")
+            with open(path, "rb") as fd:
+                data = pickle.load(fd)
         except Exception as e:
             raise RuntimeError(e)
         else:
+            self.logger.info(f"Load embedding for {model_name} from {path}")
             return data
 
     def get_model(self, model_name: str) -> Dict[Literal["type", "model"], Any]:
@@ -237,3 +232,6 @@ class EmbeddingAI:
         else:
             raise RuntimeError(f"{model_name} is not lexical or sentence model")
         return result
+
+    def get_embedding_path(self, model_name: str) -> str:
+        return str(self.__embedding_dir / f"{model_name}.pickle")
