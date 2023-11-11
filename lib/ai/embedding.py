@@ -1,7 +1,7 @@
 import json
 import logging
 import pickle
-from collections import defaultdict, namedtuple
+from collections import namedtuple
 from pathlib import Path
 from typing import Any, Dict, List, Literal
 
@@ -9,7 +9,7 @@ from pykospacing import Spacing
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
-from lib.ai.model.common import Embedding
+from lib.ai.model.common import Embedding, ModelMeta
 
 
 class EmbeddingAI:
@@ -35,7 +35,7 @@ class EmbeddingAI:
         if not self.__embedding_dir.is_dir():
             raise RuntimeError(f"{self.__embedding_dir} Not Directory")
 
-    def execute(self) -> Dict[Literal["lexical", "sentence"], Dict[str, str]]:
+    def execute(self) -> List[ModelMeta]:
         """
         사용 가능한 모든 모델의 임베딩을 만들어 저장
         @step
@@ -43,7 +43,7 @@ class EmbeddingAI:
         2. lexical, sentence model & embedding 생성
         3. embedding 저장
         4. embedding 저장 경로 반환
-        :return: {"lexical": {model_name: embedding_path}, "sentence": {model_name: embedding_path}}
+        :return: [ModelMeta]
         """
         lexical_model_names = []
         sentence_model_names = []
@@ -58,13 +58,13 @@ class EmbeddingAI:
         model_name = self.get_sroberta_multitask_model(data)
         sentence_model_names.append(model_name)
         self.logger.info("Save Embedding")
-        result = defaultdict(dict)
+        result: List[ModelMeta] = []
         for model_name in lexical_model_names:
             saved_path = self.save_embedding(model_name)
-            result["lexical"][model_name] = saved_path
+            result.append(ModelMeta(name=model_name, embedding_path=saved_path, type="lexical"))
         for model_name in sentence_model_names:
             saved_path = self.save_embedding(model_name)
-            result["sentence"][model_name] = saved_path
+            result.append(ModelMeta(name=model_name, embedding_path=saved_path, type="sentence"))
         return result
 
     def is_lexical_model(self, model_name: str) -> bool:

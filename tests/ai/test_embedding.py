@@ -144,14 +144,12 @@ def test_embedding_integration(env):
     # when
     result = embedding_ai.execute()
     # then
-    for key, val in result.items():
-        if key == "lexical":
-            for model_name, embedding_saved_path in val.items():
-                assert embedding_ai.is_lexical_model(model_name)
-                assert Path(embedding_saved_path).exists()
-        elif key == "sentence":
-            for model_name, embedding_saved_path in val.items():
-                assert embedding_ai.is_sentence_model(model_name)
-                assert Path(embedding_saved_path).exists()
+    for meta in result:
+        if meta.type == "lexical":
+            assert embedding_ai.is_lexical_model(meta.name)
+            assert Path(meta.embedding_path).exists()
+        elif meta.type == "sentence":
+            assert embedding_ai.is_sentence_model(meta.name)
+            assert Path(meta.embedding_path).exists()
         else:
             assert False
