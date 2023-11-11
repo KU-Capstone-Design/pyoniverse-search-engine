@@ -1,7 +1,7 @@
 import json
 import logging
 import traceback
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from pathlib import Path
 from typing import Any, Dict, List, Literal
 
@@ -12,6 +12,8 @@ from sentence_transformers import SentenceTransformer
 
 
 class EmbeddingAI:
+    Data = namedtuple("Data", ["id", "company", "name"])
+
     def __init__(self, data_path: str, embedding_dir: str = "resource/embedding"):
         self.logger = logging.getLogger(__name__)
         self.__data_path = Path(data_path)
@@ -76,7 +78,7 @@ class EmbeddingAI:
         """
         return model_name in self.__sentence_models
 
-    def preprocess_data(self) -> List[dict]:
+    def preprocess_data(self) -> List["EmbeddingAI.Data"]:
         """
         @fields
         self.__data_path: Json 형식의 임베딩될 데이터 파일 위치
@@ -95,7 +97,7 @@ class EmbeddingAI:
             raise RuntimeError(f"{self.__data_path} is empty")
         # Kospacing
         spacing = Spacing()
-        response: List[dict] = []  # dictionary list {id, company, name}
+        response: List[EmbeddingAI.Data] = []  # dictionary list {id, company, name}
         for datum in data:
             p = datum["name"].find(")")
             if p != -1:
@@ -108,25 +110,25 @@ class EmbeddingAI:
                     datum["spaced_name"] = spacing(datum["name"], ignore="none")
             except Exception as e:
                 raise RuntimeError(e)
-            response.append({"id": datum["id"], "company": company, "name": datum["spaced_name"]})
+            response.append(EmbeddingAI.Data(id=datum["id"], company=company, name=datum["spaced_name"]))
         # update saved file
         with open(self.__data_path, "w") as fd:
             json.dump(data, fd, ensure_ascii=False)
         return response
 
-    def get_bm250k_model(self, data: List[dict]) -> str:
+    def get_bm250k_model(self, data: List["EmbeddingAI.Data"]) -> str:
         """
         Lexical Model
         :param data: [{"id": .., "company": .., "name": ...}]
         :return: model_name
         """
         if "bm250k" not in self.__lexical_models:
-            corpus = [{"embedding": d["name"], "id": d["id"], "name": d["name"], "company": d["company"]} for d in data]
+            corpus = [{"embedding": d.name, "id": d.id, "name": d.name, "company": d.company} for d in data]
             model = BM25Okapi([doc["embedding"].split(" ") for doc in corpus])
             self.__lexical_models["bm250k"] = (model, corpus)
         return "bm250k"
 
-    def get_sroberta_multitask_model(self, data: List[dict]) -> str:
+    def get_sroberta_multitask_model(self, data: List["EmbeddingAI.Data"]) -> str:
         """
         Sentence Model
         :param data: [{"id": .., "company": .., "name": ...}]
@@ -141,7 +143,7 @@ class EmbeddingAI:
             self.save_embedding(model_name=model_name)
         return model_name
 
-    def get_sroberta_sts_model(self, data: List[dict]) -> str:
+    def get_sroberta_sts_model(self, data: List["EmbeddingAI.Data"]) -> str:
         """
         Sentence Model
         :param data: [{"id": .., "company": .., "name": ...}]
@@ -156,7 +158,9 @@ class EmbeddingAI:
             self.save_embedding(model_name=model_name)
         return model_name
 
-    def __make_embedding(self, model: SentenceTransformer, data: List[dict], model_name: str) -> List[dict]:
+    def __make_embedding(
+        self, model: SentenceTransformer, data: List["EmbeddingAI.Data"], model_name: str
+    ) -> List[dict]:
         """
         :param model: SentenceTransformer
         :param data: [{"id": .., "company": .., "name": ...}]
@@ -170,13 +174,13 @@ class EmbeddingAI:
         self.logger.info(f"Make embedding for {model}")
         already_embedded = set(e["id"] for e in embeddings)
         for datum in data:
-            if datum["id"] not in already_embedded:
+            if datum.id not in already_embedded:
                 embeddings.append(
                     {
-                        "embedding": model.encode(datum["name"]),
-                        "id": datum["id"],
-                        "name": datum["name"],
-                        "company": datum["company"],
+                        "embedding": model.encode(datum.name),
+                        "id": datum.id,
+                        "name": datum.name,
+                        "company": datum.company,
                     }
                 )
         return embeddings
