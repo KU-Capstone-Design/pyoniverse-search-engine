@@ -132,11 +132,14 @@ class EmbeddingAI:
         :param data: [{"id": .., "company": .., "name": ...}]
         :return: model_name
         """
-        if "sroberta_multitask" not in self.__sentence_models:
+        model_name = "sroberta_multitask"
+        if model_name not in self.__sentence_models:
             model = SentenceTransformer("jhgan/ko-sroberta-multitask")
-            embedding = self.__make_embedding(model, data)
-            self.__sentence_models["sroberta_multitask"] = (model, embedding)
-        return "sroberta_multitask"
+            embedding = self.__make_embedding(model=model, data=data, model_name=model_name)
+            self.__sentence_models[model_name] = (model, embedding)
+            self.logger.info(f"Save embedding for {model}")
+            self.save_embedding(model_name=model_name)
+        return model_name
 
     def get_sroberta_sts_model(self, data: List[dict]) -> str:
         """
@@ -144,29 +147,38 @@ class EmbeddingAI:
         :param data: [{"id": .., "company": .., "name": ...}]
         :return: model_name
         """
-        if "sroberta_sts" not in self.__sentence_models:
+        model_name = "sroberta_sts"
+        if model_name not in self.__sentence_models:
             model = SentenceTransformer("jhgan/ko-sroberta-sts")
-            embedding = self.__make_embedding(model, data)
-            self.__sentence_models["sroberta_sts"] = (model, embedding)
-        return "sroberta_sts"
+            embedding = self.__make_embedding(model=model, data=data, model_name=model_name)
+            self.__sentence_models[model_name] = (model, embedding)
+            self.logger.info(f"Save embedding for {model}")
+            self.save_embedding(model_name=model_name)
+        return model_name
 
-    def __make_embedding(self, model: SentenceTransformer, data: List[dict]) -> List[dict]:
+    def __make_embedding(self, model: SentenceTransformer, data: List[dict], model_name: str) -> List[dict]:
         """
         :param model: SentenceTransformer
         :param data: [{"id": .., "company": .., "name": ...}]
         :return: [{"embedding": ..., "id": ..., "name": ..., "company": ...}]
         """
+        self.logger.info(f"Load embedding for {model}")
+        try:
+            embeddings = self.get_embedding(model_name=model_name)
+        except Exception as e:
+            embeddings = []
         self.logger.info(f"Make embedding for {model}")
-        embeddings = []
+        already_embedded = set(e["id"] for e in embeddings)
         for datum in data:
-            embeddings.append(
-                {
-                    "embedding": model.encode(datum["name"]),
-                    "id": datum["id"],
-                    "name": datum["name"],
-                    "company": datum["company"],
-                }
-            )
+            if datum["id"] not in already_embedded:
+                embeddings.append(
+                    {
+                        "embedding": model.encode(datum["name"]),
+                        "id": datum["id"],
+                        "name": datum["name"],
+                        "company": datum["company"],
+                    }
+                )
         return embeddings
 
     def save_embedding(self, model_name: str) -> str:
@@ -184,12 +196,27 @@ class EmbeddingAI:
             saved_path = self.__embedding_dir / f"{model_name}.npy"
             try:
                 np.save(str(saved_path), embedding)
+                self.logger.info(f"embedding for {model_name} is saved at {saved_path}")
             except Exception as e:
                 self.logger.error(traceback.format_exc())
                 raise RuntimeError(f"{model_name} Not Saved")
         else:
             raise RuntimeError(f"{model_name} not in lexical or sentence models")
         return str(saved_path)
+
+    def get_embedding(self, model_name: str):
+        """
+        save_embedding으로 저장된 embedding 가져오기
+        :return: embedded data
+        """
+        path = self.__embedding_dir / f"{model_name}.npy"
+        try:
+            data = np.load(str(path), allow_pickle=True)
+            self.logger.info(f"Load embedding for {model_name} from {path}")
+        except Exception as e:
+            raise RuntimeError(e)
+        else:
+            return data
 
     def get_model(self, model_name: str) -> Dict[Literal["type", "model"], Any]:
         """

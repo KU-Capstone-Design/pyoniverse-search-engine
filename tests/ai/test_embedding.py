@@ -134,11 +134,8 @@ def test_save_embedding_invalid_model(env):
     # given
     embedding_ai = EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
     # when & then
-    try:
+    with pytest.raises(RuntimeError):
         embedding_ai.save_embedding("invalid")
-        assert False
-    except RuntimeError:
-        assert True
 
 
 def test_embedding_integration(env):
