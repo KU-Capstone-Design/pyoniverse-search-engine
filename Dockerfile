@@ -4,6 +4,7 @@ WORKDIR /app
 # 해당 디렉토리에 있는 모든 하위항목들을 현재 디렉토리로 복사 ,, 여기서 지정
 COPY lib lib
 COPY main.py .
+COPY .env .
 COPY requirements.txt .
 COPY requirements.sh .
 
