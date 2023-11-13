@@ -20,32 +20,30 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Preload Environment
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Test
+      - name: Setup env
         shell: bash
-        run: |
-          ./requirements.sh
-#          python -m pytest -v
-
-      - name: Build and Push
-        shell: bash
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          DOCKER_IMAGE: pyoniverse-search-engine
         run: |
           echo "MONGO_URI={{ secrets.MONGO_URI }}" >> .env
           echo "MONGO_DB={{ secrets.MONGO_SERVICE_DB_DEV }}"
 
-          docker build -t $REGISTRY/$DOCKER_IMAGE:$STAGE .
-          docker push $REGISTRY/$DOCKER_IMAGE:$STAGE
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          DOCKER_IMAGE: pyoniverse-search-engine
+        with:
+          context: .
+          push: true
+          tags: $REGISTRY/$DOCKER_IMAGE:$STAGE
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Deploy Alarm
         uses: 8398a7/action-slack@v3
