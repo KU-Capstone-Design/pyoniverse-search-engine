@@ -2,7 +2,8 @@ pre-commit
 pytest
 memory_profiler
 line_profiler
-fastapi
 uvicorn
 pymongo
 python-dotenv
+fastapi
+pydantic-settings
