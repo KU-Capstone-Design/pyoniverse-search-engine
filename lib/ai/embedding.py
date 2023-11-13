@@ -1,11 +1,13 @@
-import json
 import logging
+import os
 import pickle
 from collections import namedtuple
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Tuple
 
 from pykospacing import Spacing
+from pymongo import MongoClient, ReadPreference, UpdateOne
+from pymongo.errors import ConfigurationError
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
@@ -15,15 +17,8 @@ from lib.ai.model.common import Embedding, ModelMeta
 class EmbeddingAI:
     Data = namedtuple("Data", ["id", "company", "name"])
 
-    def __init__(self, data_path: str, embedding_dir: str = "resource/embedding"):
+    def __init__(self, embedding_dir: str = "resource/embedding"):
         self.logger = logging.getLogger(__name__)
-        self.__data_path = Path(data_path)
-        if not self.__data_path.exists():
-            raise RuntimeError(f"{self.__data_path} Not Found")
-        if not self.__data_path.is_file():
-            raise RuntimeError(f"{self.__data_path} Not File")
-        if self.__data_path.suffix != ".json":
-            raise RuntimeError(f"{self.__data_path} is not json format")
         # model과 corpus/embedding 함께 저장
         self.__lexical_models = {}
         self.__sentence_models = {}
@@ -90,13 +85,15 @@ class EmbeddingAI:
         [{"id": d["id"], "name": d["name"], "company": ...} for d in data]
         """
         try:
-            with open(self.__data_path, "r") as fd:
-                data = json.load(fd)
-        except Exception:
-            raise RuntimeError(f"{self.__data_path} is invalid json")
-        if not data:
-            raise RuntimeError(f"{self.__data_path} is empty")
+            client = MongoClient(os.getenv("MONGO_URI"))
+            client.admin.command("ping")
+        except ConfigurationError as e:
+            self.logger.error("Cannot connect db")
+            raise RuntimeError(e)
+        db = client.get_database(os.getenv("MONGO_DB"), read_preference=ReadPreference.SECONDARY_PREFERRED)
+        data = list(db["products"].find(projection={"_id": False, "id": True, "name": True, "spaced_name": True}))
         # Kospacing
+        updated = []
         spacing = Spacing()
         response: List[EmbeddingAI.Data] = []  # dictionary list {id, company, name}
         for datum in data:
@@ -109,12 +106,20 @@ class EmbeddingAI:
                 # spaced_name이 없다면 새롭게 생성 - profile 결과로 spacing 연산의 비용이 크다.
                 if "spaced_name" not in datum:
                     datum["spaced_name"] = spacing(datum["name"], ignore="none")
+                    updated.append({"id": datum["id"], "spaced_name": datum["spaced_name"]})
             except Exception as e:
                 raise RuntimeError(e)
             response.append(EmbeddingAI.Data(id=datum["id"], company=company, name=datum["spaced_name"]))
-        # update saved file
-        with open(self.__data_path, "w") as fd:
-            json.dump(data, fd, ensure_ascii=False)
+        # update db
+        modified_count = 0
+        for p in range(0, len(updated), 100):
+            buffer = [
+                UpdateOne(filter={"id": d["id"]}, update={"$set": {"spaced_name": d["spaced_name"]}})
+                for d in updated[p : p + 100]
+            ]
+            res = client.get_database(os.getenv("MONGO_DB"))["products"].bulk_write(buffer)
+            modified_count += res.modified_count
+        self.logger.info(f"Update {os.getenv('MONGO_DB')}.products: {modified_count}")
         return response
 
     def get_bm250k_model(self, data: List["EmbeddingAI.Data"]) -> str:

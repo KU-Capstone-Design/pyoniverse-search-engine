@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Type
 
+import dotenv
 import pytest
 
 from lib.ai.embedding import EmbeddingAI
@@ -15,6 +16,7 @@ from lib.ai.embedding import EmbeddingAI
 def env():
     while "tests" not in os.listdir():
         os.chdir("..")
+    dotenv.load_dotenv()
 
 
 @contextmanager
@@ -34,36 +36,25 @@ def not_raises(exception: Type[Exception]):
 def test_init(env):
     # given
     with not_raises(RuntimeError):
-        EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
-
-
-def test_init_invalid_data_path(env):
-    # given
-    with pytest.raises(RuntimeError):
-        # Invalid Path
-        EmbeddingAI(data_path="tests/resource/data/invalid-path.json", embedding_dir="tests/resource/embedding")
-        # Directory Path
-        EmbeddingAI(data_path="tests/resource/data", embedding_dir="tests/resource/embedding")
-        # Invalid format
-        EmbeddingAI(data_path="tests/resource/data/products.csv", embedding_dir="tests/resource/embedding")
+        EmbeddingAI(embedding_dir="tests/resource/embedding")
 
 
 def test_init_embedding_dir(env):
     with not_raises(RuntimeError):
-        EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
-        EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/create-new-folder")
+        EmbeddingAI(embedding_dir="tests/resource/embedding")
+        EmbeddingAI(embedding_dir="tests/resource/create-new-folder")
 
 
 def test_init_embedding_dir_invalid(env):
     with pytest.raises(RuntimeError):
-        EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/data/products.json")
+        EmbeddingAI(embedding_dir="tests/resource/data/products.json")
 
 
 def test_preprocess_data(env):
     # given
     with open("tests/resource/data/products.json", "r") as fd:
         data = json.load(fd)
-    embedding_ai = EmbeddingAI(data_path="tests/resource/data/products.json")
+    embedding_ai = EmbeddingAI()
     id_name_map = {d["id"]: d["name"] for d in data}
     # when
     response: List[EmbeddingAI.Data] = embedding_ai.preprocess_data()
@@ -72,17 +63,9 @@ def test_preprocess_data(env):
         assert re.sub(r"\s", "", id_name_map[r.id]) == re.sub(r"\s", "", r.name)
 
 
-def test_preprocess_data_empty_file(env):
-    # given
-    embedding_ai = EmbeddingAI(data_path="tests/resource/data/empty-products.json")
-    # when & then
-    with pytest.raises(RuntimeError):
-        embedding_ai.preprocess_data()
-
-
 def test_get_bm250k_model(env):
     # given
-    embedding_ai = EmbeddingAI(data_path="tests/resource/data/products.json")
+    embedding_ai = EmbeddingAI()
     # when
     data = embedding_ai.preprocess_data()
     model_name = embedding_ai.get_bm250k_model(data)
@@ -95,7 +78,7 @@ def test_get_bm250k_model(env):
 
 def test_get_sroberta_multitask_model(env):
     # given
-    embedding_ai = EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
+    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
     # when
     data = embedding_ai.preprocess_data()
     model_name = embedding_ai.get_sroberta_multitask_model(data)
@@ -108,7 +91,7 @@ def test_get_sroberta_multitask_model(env):
 
 def test_sroberta_sts_model(env):
     # given
-    embedding_ai = EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
+    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
     # when
     data = embedding_ai.preprocess_data()
     model_name = embedding_ai.get_sroberta_sts_model(data)
@@ -121,7 +104,7 @@ def test_sroberta_sts_model(env):
 
 def test_save_embedding(env):
     # given
-    embedding_ai = EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
+    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
     data = embedding_ai.preprocess_data()
     model_name = embedding_ai.get_sroberta_sts_model(data)
     # when
@@ -132,7 +115,7 @@ def test_save_embedding(env):
 
 def test_save_embedding_invalid_model(env):
     # given
-    embedding_ai = EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
+    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
     # when & then
     with pytest.raises(RuntimeError):
         embedding_ai.save_embedding("invalid")
@@ -140,7 +123,7 @@ def test_save_embedding_invalid_model(env):
 
 def test_embedding_integration(env):
     # given
-    embedding_ai = EmbeddingAI(data_path="tests/resource/data/products.json", embedding_dir="tests/resource/embedding")
+    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
     # when
     result = embedding_ai.execute()
     # then
