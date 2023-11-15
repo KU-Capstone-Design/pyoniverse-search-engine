@@ -1,15 +1,14 @@
 import json
-import logging
 import os
 import re
-from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Type
+from typing import List
 
 import dotenv
 import pytest
 
 from lib.ai.embedding import EmbeddingAI
+from tests.util import not_raises
 
 
 @pytest.fixture
@@ -17,20 +16,6 @@ def env():
     while "tests" not in os.listdir():
         os.chdir("..")
     dotenv.load_dotenv()
-
-
-@contextmanager
-def not_raises(exception: Type[Exception]):
-    try:
-        yield
-    except exception as e:
-        logging.error(f"Expected Exception is raised: {repr(e)}")
-        assert False
-    except Exception as e:
-        logging.error(f"Unexpected Exception is raised: {repr(e)}")
-        assert False
-    else:
-        assert True
 
 
 def test_init(env):
