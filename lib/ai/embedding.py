@@ -1,5 +1,4 @@
 import logging
-import os
 import pickle
 from collections import namedtuple
 from pathlib import Path
@@ -11,13 +10,13 @@ from pymongo.errors import ConfigurationError
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
-from lib.ai.model.common import Embedding, ModelMeta
+from lib.ai.model.common import Embedding, EmbeddingResponseDto, ModelMeta
 
 
 class EmbeddingAI:
     Data = namedtuple("Data", ["id", "company", "name"])
 
-    def __init__(self, embedding_dir: str = "resource/embedding"):
+    def __init__(self, db_uri: str = None, db_name: str = None, embedding_dir: str = "resource/embedding"):
         self.logger = logging.getLogger(__name__)
         # model과 corpus/embedding 함께 저장
         self.__lexical_models = {}
@@ -29,10 +28,18 @@ class EmbeddingAI:
             self.__embedding_dir.mkdir(parents=True, exist_ok=True)
         if not self.__embedding_dir.is_dir():
             raise RuntimeError(f"{self.__embedding_dir} Not Directory")
+        self.__db_uri = db_uri
+        if not self.__db_uri:
+            raise RuntimeError(f"{self.__db_uri} is empty")
+        self.__db_name = db_name
+        if not self.__db_name:
+            raise RuntimeError(f"{self.__db_name} is empty")
 
-    def execute(self) -> List[ModelMeta]:
+    def execute(self, clean: bool = False) -> EmbeddingResponseDto:
         """
         사용 가능한 모든 모델의 임베딩을 만들어 저장
+        @params
+        1. clean: 이전 임베딩 데이터를 버릴지 판단하기(True: 버리고 재생성)
         @step
         1. Data 전처리
         2. lexical, sentence model & embedding 생성
@@ -43,24 +50,19 @@ class EmbeddingAI:
         lexical_model_names = []
         sentence_model_names = []
         self.logger.info("Preprocess Data")
-        data = self.preprocess_data()
+        data = self.preprocess_data(clean=clean)
         self.logger.info("Build lexical model")
         model_name = self.get_bm250k_model(data)
         lexical_model_names.append(model_name)
         self.logger.info("Build sentence model")
-        model_name = self.get_sroberta_sts_model(data)
+        model_name = self.get_sroberta_sts_model(data, clean=clean)
         sentence_model_names.append(model_name)
-        model_name = self.get_sroberta_multitask_model(data)
+        model_name = self.get_sroberta_multitask_model(data, clean=clean)
         sentence_model_names.append(model_name)
-        self.logger.info("Save Embedding")
         result: List[ModelMeta] = []
-        for model_name in lexical_model_names:
-            saved_path = self.save_embedding(model_name)
-            result.append(ModelMeta(name=model_name, embedding_path=saved_path, type="lexical"))
-        for model_name in sentence_model_names:
-            saved_path = self.save_embedding(model_name)
-            result.append(ModelMeta(name=model_name, embedding_path=saved_path, type="sentence"))
-        return result
+        result += [ModelMeta(name=name, type="lexical") for name in lexical_model_names]
+        result += [ModelMeta(name=name, type="sentence") for name in sentence_model_names]
+        return EmbeddingResponseDto(models=result)
 
     def is_lexical_model(self, model_name: str) -> bool:
         """
@@ -74,10 +76,11 @@ class EmbeddingAI:
         """
         return model_name in self.__sentence_models
 
-    def preprocess_data(self) -> List["EmbeddingAI.Data"]:
+    def preprocess_data(self, clean: bool = False) -> List["EmbeddingAI.Data"]:
         """
         @fields
         self.__data_path: Json 형식의 임베딩될 데이터 파일 위치
+        clean: 이전 데이터(spaced name)을 버릴지 여부 판단(True: 버리고 재생성)
         @steps
         1. 상품 제조 회사 찾기
         2. 상품 임베딩을 위해 단어 공백 띄우기(맥락을 고려하기 위함)
@@ -85,12 +88,12 @@ class EmbeddingAI:
         [{"id": d["id"], "name": d["name"], "company": ...} for d in data]
         """
         try:
-            client = MongoClient(os.getenv("MONGO_URI"))
+            client = MongoClient(self.__db_uri)
             client.admin.command("ping")
         except ConfigurationError as e:
             self.logger.error("Cannot connect db")
             raise RuntimeError(e)
-        db = client.get_database(os.getenv("MONGO_DB"), read_preference=ReadPreference.SECONDARY_PREFERRED)
+        db = client.get_database(self.__db_name, read_preference=ReadPreference.SECONDARY_PREFERRED)
         data = list(db["products"].find(projection={"_id": False, "id": True, "name": True, "spaced_name": True}))
         # Kospacing
         updated = []
@@ -104,7 +107,7 @@ class EmbeddingAI:
                 company = None
             try:
                 # spaced_name이 없다면 새롭게 생성 - profile 결과로 spacing 연산의 비용이 크다.
-                if "spaced_name" not in datum:
+                if clean or "spaced_name" not in datum:
                     datum["spaced_name"] = spacing(datum["name"], ignore="none")
                     updated.append({"id": datum["id"], "spaced_name": datum["spaced_name"]})
             except Exception as e:
@@ -117,9 +120,9 @@ class EmbeddingAI:
                 UpdateOne(filter={"id": d["id"]}, update={"$set": {"spaced_name": d["spaced_name"]}})
                 for d in updated[p : p + 100]
             ]
-            res = client.get_database(os.getenv("MONGO_DB"))["products"].bulk_write(buffer)
+            res = client.get_database(self.__db_name)["products"].bulk_write(buffer)
             modified_count += res.modified_count
-        self.logger.info(f"Update {os.getenv('MONGO_DB')}.products: {modified_count}")
+        self.logger.info(f"Update {self.__db_name}.products: {modified_count}")
         return response
 
     def get_bm250k_model(self, data: List["EmbeddingAI.Data"]) -> str:
@@ -132,44 +135,48 @@ class EmbeddingAI:
             embeddings = [Embedding(embedding=d.name, id=d.id, name=d.name) for d in data]
             model = BM25Okapi([doc.embedding.split(" ") for doc in embeddings])
             self.__lexical_models["bm250k"] = (model, embeddings)
+            self.save_embedding(model_name="bm250k")
         return "bm250k"
 
-    def get_sroberta_multitask_model(self, data: List["EmbeddingAI.Data"]) -> str:
+    def get_sroberta_multitask_model(self, data: List["EmbeddingAI.Data"], clean: bool = False) -> str:
         """
         Sentence Model
         :param data: [{"id": .., "company": .., "name": ...}]
+        :param clean: 이전 임베딩 데이터를 지울지 여부(True: 지우고 재생성)
         :return: model_name
         """
         model_name = "sroberta_multitask"
         if model_name not in self.__sentence_models:
             model = SentenceTransformer("jhgan/ko-sroberta-multitask")
-            embedding = self.__make_embedding(model=model, data=data, model_name=model_name)
+            embedding = self.__make_embedding(model=model, data=data, model_name=model_name, clean=clean)
             self.__sentence_models[model_name] = (model, embedding)
             self.logger.info(f"Save embedding for {model}")
             self.save_embedding(model_name=model_name)
         return model_name
 
-    def get_sroberta_sts_model(self, data: List["EmbeddingAI.Data"]) -> str:
+    def get_sroberta_sts_model(self, data: List["EmbeddingAI.Data"], clean: bool = False) -> str:
         """
         Sentence Model
         :param data: [{"id": .., "company": .., "name": ...}]
+        :param clean: 이전 임베딩 데이터를 지울지 여부(True: 지우고 재생성)
         :return: model_name
         """
         model_name = "sroberta_sts"
         if model_name not in self.__sentence_models:
             model = SentenceTransformer("jhgan/ko-sroberta-sts")
-            embedding = self.__make_embedding(model=model, data=data, model_name=model_name)
+            embedding = self.__make_embedding(model=model, data=data, model_name=model_name, clean=clean)
             self.__sentence_models[model_name] = (model, embedding)
             self.logger.info(f"Save embedding for {model}")
             self.save_embedding(model_name=model_name)
         return model_name
 
     def __make_embedding(
-        self, model: SentenceTransformer, data: List["EmbeddingAI.Data"], model_name: str
+        self, model: SentenceTransformer, data: List["EmbeddingAI.Data"], model_name: str, clean: bool = False
     ) -> List[Embedding]:
         """
         :param model: SentenceTransformer
         :param data: [{"id": .., "company": .., "name": ...}]
+        :param clean: 이전 임베딩 데이터를 지울지 여부(True: 지우고 재생성)
         :return: [{"embedding": ..., "id": ..., "name": ..., "company": ...}]
         """
         self.logger.info(f"Load embedding for {model}")
@@ -180,7 +187,7 @@ class EmbeddingAI:
         self.logger.info(f"Make embedding for {model}")
         already_embedded = set(e.id for e in embeddings)
         for datum in data:
-            if datum.id not in already_embedded:
+            if clean or datum.id not in already_embedded:
                 embeddings.append(
                     Embedding(
                         embedding=model.encode(datum.name),
