@@ -31,7 +31,8 @@ jobs:
         shell: bash
         run: |
           echo "MONGO_URI={{ secrets.MONGO_URI }}" >> .env
-          echo "MONGO_DB={{ secrets.MONGO_SERVICE_DB_DEV }}"
+          echo "MONGO_DB={{ secrets.MONGO_SERVICE_DB_DEV }}" >> .env
+          echo "STAGE=dev" >> .env
 
       - name: Build and Push
         uses: docker/build-push-action@v5

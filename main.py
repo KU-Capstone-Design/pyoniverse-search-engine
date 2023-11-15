@@ -13,7 +13,7 @@ app = FastAPI(
 )
 app.include_router(
     search.router,
-    prefix=f"/{settings.version}/search",
+    prefix=f"/{settings.stage}/{settings.version}/search",
     tags=["search"],
 )
-app.include_router(embedding.router, prefix=f"/{settings.version}/embedding", tags=["embedding"])
+app.include_router(embedding.router, prefix=f"/{settings.stage}/{settings.version}/embedding", tags=["embedding"])

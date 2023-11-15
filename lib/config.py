@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "pyoniverse-search-engine api"
+    stage: str = ""
     version: str = "v1"
     summary: str = "Search Engine's API"
     mongo_uri: str = ""

@@ -1,9 +1,16 @@
-# pre-commit
-# pytest
-# memory_profiler
-# line_profiler
-uvicorn
-pymongo
+# Static Analysis
+pre-commit
+# Configuration
 python-dotenv
-fastapi
 pydantic-settings
+# API
+fastapi
+uvicorn
+# DB
+pymongo
+# Test
+pytest
+httpx
+# Profile
+memory_profiler
+line_profiler
