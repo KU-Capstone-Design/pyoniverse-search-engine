@@ -4,12 +4,22 @@ from pathlib import Path
 from typing import List
 
 from lib.ai.model.embedding import SearchModel
+from lib.config import get_settings
 
 
 class ModelLoader:
     """
     model_dir에 있는 검색 모델을 로드
     """
+
+    __instance = None
+
+    @classmethod
+    def instance(cls):
+        if cls.__instance is None:
+            settings = get_settings()
+            cls.__instance = cls(model_dir=settings.model_dir)
+        return cls.__instance
 
     def __init__(self, model_dir: str = "resource/model"):
         assert model_dir

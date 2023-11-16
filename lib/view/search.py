@@ -1,16 +1,16 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from lib.ai.model.search import SearchResponseDto
 from lib.ai.search import SearchAI
-from lib.dependency_injector import get_search_ai
 from lib.view.model.api_response import ApiResponse
 
 
 router = APIRouter()
+search_ai: SearchAI = SearchAI.instance()
 
 
 @router.get("/{query}")
-async def search(query: str, search_ai: SearchAI = Depends(get_search_ai)) -> ApiResponse[SearchResponseDto]:
+async def search(query: str) -> ApiResponse[SearchResponseDto]:
     """
     검색 결과 반환
     :param query: 검색 쿼리

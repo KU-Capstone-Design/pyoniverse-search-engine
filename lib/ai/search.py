@@ -3,22 +3,35 @@ from collections import namedtuple
 from typing import List, Literal
 
 import numpy as np
+from fastapi import HTTPException
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
+from lib.ai.loader import ModelLoader
 from lib.ai.model.embedding import SearchModel
 from lib.ai.model.search import SearchResponseDto
+from lib.config import get_settings
 
 
 class SearchAI:
+    __instance = None
     Data = namedtuple("Data", ["id", "name", "score"])
 
-    def __init__(self, version: Literal["v1"], models: List[SearchModel], cross_encoder: CrossEncoder):
+    @classmethod
+    def instance(cls):
+        if cls.__instance is None:
+            settings = get_settings()
+            loader = ModelLoader.instance()
+            cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1")
+            cls.__instance = cls(version=settings.version, loader=loader, cross_encoder=cross_encoder)
+        return cls.__instance
+
+    def __init__(self, version: Literal["v1"], loader: ModelLoader, cross_encoder: CrossEncoder):
         """
         :param models 사용 가능한 검색 모델 리스트
         """
         self.logger = logging.getLogger(__name__)
-        self.__models = models
+        self.__models: List[SearchModel] = loader.load()
         self.__cross_encoder = cross_encoder
         assert isinstance(self.__cross_encoder, CrossEncoder)
         self.__version = version
@@ -39,6 +52,8 @@ class SearchAI:
             else:
                 self.logger.info(f"{model.type} isn't supported")
         results = self.__ansible(query=query, data=data)
+        if not results:
+            raise HTTPException(status_code=404, detail="Empty Result")
         response = SearchResponseDto(version=self.__version, engine_type="ML", results=[r.id for r in results])
         return response
 

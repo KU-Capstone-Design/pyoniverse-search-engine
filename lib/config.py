@@ -16,5 +16,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
 
-def get_settings():
+@lru_cache
+def get_settings() -> Settings:
     return Settings()

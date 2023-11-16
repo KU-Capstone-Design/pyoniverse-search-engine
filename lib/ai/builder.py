@@ -11,6 +11,7 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
 from lib.ai.model.embedding import Embedding, EmbeddingResponseDto, ModelMeta, SearchModel
+from lib.config import get_settings
 
 
 class ModelBuilder:
@@ -19,6 +20,14 @@ class ModelBuilder:
     """
 
     Data = namedtuple("Data", ["id", "company", "name"])
+    __instance = None
+
+    @classmethod
+    def instance(cls):
+        if cls.__instance is None:
+            settings = get_settings()
+            cls.__instance = cls(db_uri=settings.mongo_uri, db_name=settings.mongo_db, model_dir=settings.model_dir)
+        return cls.__instance
 
     def __init__(self, db_uri: str = None, db_name: str = None, model_dir: str = "resource/model"):
         self.logger = logging.getLogger(__name__)

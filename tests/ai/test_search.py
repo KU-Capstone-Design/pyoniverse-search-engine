@@ -1,6 +1,5 @@
 import os
 
-import pytest
 from sentence_transformers import CrossEncoder
 
 from lib.ai.loader import ModelLoader
@@ -14,14 +13,13 @@ while "tests" not in os.listdir():
 os.environ["MONGO_DB"] = "test"
 
 
-@pytest.fixture
-def models():
-    return ModelLoader(model_dir="tests/resource/model").load()
-
-
-def test_search(models):
+def test_search():
     # given
-    search_model = SearchAI(version="v1", models=models, cross_encoder=CrossEncoder("bongsoo/kpf-cross-encoder-v1"))
+    search_model = SearchAI(
+        version="v1",
+        loader=ModelLoader(model_dir="tests/resource/model"),
+        cross_encoder=CrossEncoder("bongsoo/kpf-cross-encoder-v1"),
+    )
     query = "우유"
     # when
     response: SearchResponseDto = search_model.search(query)
