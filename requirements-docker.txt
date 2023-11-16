@@ -1,8 +1,10 @@
 # Configuration
-python-dotenv
-pydantic-settings
+python-dotenv==1.0.0
+pydantic-settings==2.0.3
 # API
-fastapi
-uvicorn
+fastapi==0.104.1
+uvicorn==0.24.0.post1
 # DB
-pymongo
+pymongo==4.6.0
+# Dependency-Injector
+# dependency-injector==4.41.0

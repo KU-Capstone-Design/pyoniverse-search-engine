@@ -2,7 +2,7 @@ import logging
 import pickle
 from collections import namedtuple
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Tuple
+from typing import Any, Dict, List, Literal, Tuple, Union
 
 from pykospacing import Spacing
 from pymongo import MongoClient, ReadPreference, UpdateOne
@@ -10,24 +10,36 @@ from pymongo.errors import ConfigurationError
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
-from lib.ai.model.embedding import Embedding, EmbeddingResponseDto, ModelMeta
+from lib.ai.model.embedding import Embedding, EmbeddingResponseDto, ModelMeta, SearchModel
+from lib.config import get_settings
 
 
-class EmbeddingAI:
+class ModelBuilder:
+    """
+    Lexical, Sentence Search Model과 이에 대응하는 Embedding을 만들고, 이것을 Pickling하여 저장하는 클래스
+    """
+
     Data = namedtuple("Data", ["id", "company", "name"])
+    __instance = None
 
-    def __init__(self, db_uri: str = None, db_name: str = None, embedding_dir: str = "resource/embedding"):
+    @classmethod
+    def instance(cls):
+        if cls.__instance is None:
+            settings = get_settings()
+            cls.__instance = cls(db_uri=settings.mongo_uri, db_name=settings.mongo_db, model_dir=settings.model_dir)
+        return cls.__instance
+
+    def __init__(self, db_uri: str = None, db_name: str = None, model_dir: str = "resource/model"):
         self.logger = logging.getLogger(__name__)
-        # model과 corpus/embedding 함께 저장
         self.__lexical_models = {}
         self.__sentence_models = {}
-        # embedding을 저장할 경로 저장
-        self.__embedding_dir = Path(embedding_dir)
-        if not self.__embedding_dir.exists():
+        # Model을 저장할 경로 저장
+        self.__model_dir = Path(model_dir)
+        if not self.__model_dir.exists():
             # 새로운 폴더 생성
-            self.__embedding_dir.mkdir(parents=True, exist_ok=True)
-        if not self.__embedding_dir.is_dir():
-            raise RuntimeError(f"{self.__embedding_dir} Not Directory")
+            self.__model_dir.mkdir(parents=True, exist_ok=True)
+        if not self.__model_dir.is_dir():
+            raise RuntimeError(f"{self.__model_dir} Not Directory")
         self.__db_uri = db_uri
         if not self.__db_uri:
             raise RuntimeError(f"{self.__db_uri} is empty")
@@ -52,16 +64,20 @@ class EmbeddingAI:
         self.logger.info("Preprocess Data")
         data = self.preprocess_data(clean=clean)
         self.logger.info("Build lexical model")
-        model_name = self.get_bm250k_model(data)
+        model_name = self.make_bm250k_model(data)
         lexical_model_names.append(model_name)
         self.logger.info("Build sentence model")
-        model_name = self.get_sroberta_sts_model(data, clean=clean)
+        model_name = self.make_sroberta_sts_model(data, clean=clean)
         sentence_model_names.append(model_name)
-        model_name = self.get_sroberta_multitask_model(data, clean=clean)
+        model_name = self.make_sroberta_multitask_model(data, clean=clean)
         sentence_model_names.append(model_name)
         result: List[ModelMeta] = []
-        result += [ModelMeta(name=name, type="lexical") for name in lexical_model_names]
-        result += [ModelMeta(name=name, type="sentence") for name in sentence_model_names]
+        result += [
+            ModelMeta(name=name, type="lexical", model_path=self.get_model_path(name)) for name in lexical_model_names
+        ]
+        result += [
+            ModelMeta(name=name, type="sentence", model_path=self.get_model_path(name)) for name in sentence_model_names
+        ]
         return EmbeddingResponseDto(models=result)
 
     def is_lexical_model(self, model_name: str) -> bool:
@@ -76,7 +92,7 @@ class EmbeddingAI:
         """
         return model_name in self.__sentence_models
 
-    def preprocess_data(self, clean: bool = False) -> List["EmbeddingAI.Data"]:
+    def preprocess_data(self, clean: bool = False) -> List["ModelBuilder.Data"]:
         """
         @fields
         self.__data_path: Json 형식의 임베딩될 데이터 파일 위치
@@ -98,7 +114,7 @@ class EmbeddingAI:
         # Kospacing
         updated = []
         spacing = Spacing()
-        response: List[EmbeddingAI.Data] = []  # dictionary list {id, company, name}
+        response: List[ModelBuilder.Data] = []  # dictionary list {id, company, name}
         for datum in data:
             p = datum["name"].find(")")
             if p != -1:
@@ -112,7 +128,7 @@ class EmbeddingAI:
                     updated.append({"id": datum["id"], "spaced_name": datum["spaced_name"]})
             except Exception as e:
                 raise RuntimeError(e)
-            response.append(EmbeddingAI.Data(id=datum["id"], company=company, name=datum["spaced_name"]))
+            response.append(ModelBuilder.Data(id=datum["id"], company=company, name=datum["spaced_name"]))
         # update db
         modified_count = 0
         for p in range(0, len(updated), 100):
@@ -125,20 +141,19 @@ class EmbeddingAI:
         self.logger.info(f"Update {self.__db_name}.products: {modified_count}")
         return response
 
-    def get_bm250k_model(self, data: List["EmbeddingAI.Data"]) -> str:
+    def make_bm250k_model(self, data: List["ModelBuilder.Data"]) -> str:
         """
         Lexical Model
         :param data: [{"id": .., "company": .., "name": ...}]
         :return: model_name
         """
-        if "bm250k" not in self.__lexical_models:
-            embeddings = [Embedding(embedding=d.name, id=d.id, name=d.name) for d in data]
-            model = BM25Okapi([doc.embedding.split(" ") for doc in embeddings])
-            self.__lexical_models["bm250k"] = (model, embeddings)
-            self.save_embedding(model_name="bm250k")
+        embeddings = [Embedding(embedding=d.name, id=d.id, name=d.name) for d in data]
+        model = BM25Okapi([doc.embedding.split(" ") for doc in embeddings])
+        self.__lexical_models["bm250k"] = (model, embeddings)
+        self.save(model_name="bm250k")
         return "bm250k"
 
-    def get_sroberta_multitask_model(self, data: List["EmbeddingAI.Data"], clean: bool = False) -> str:
+    def make_sroberta_multitask_model(self, data: List["ModelBuilder.Data"], clean: bool = False) -> str:
         """
         Sentence Model
         :param data: [{"id": .., "company": .., "name": ...}]
@@ -146,15 +161,14 @@ class EmbeddingAI:
         :return: model_name
         """
         model_name = "sroberta_multitask"
-        if model_name not in self.__sentence_models:
-            model = SentenceTransformer("jhgan/ko-sroberta-multitask")
-            embedding = self.__make_embedding(model=model, data=data, model_name=model_name, clean=clean)
-            self.__sentence_models[model_name] = (model, embedding)
-            self.logger.info(f"Save embedding for {model}")
-            self.save_embedding(model_name=model_name)
+        model = SentenceTransformer("jhgan/ko-sroberta-multitask")
+        embedding = self.__make_embedding(model=model, data=data, model_name=model_name, clean=clean)
+        self.__sentence_models[model_name] = (model, embedding)
+        self.logger.info(f"Save embedding for {model}")
+        self.save(model_name=model_name)
         return model_name
 
-    def get_sroberta_sts_model(self, data: List["EmbeddingAI.Data"], clean: bool = False) -> str:
+    def make_sroberta_sts_model(self, data: List["ModelBuilder.Data"], clean: bool = False) -> str:
         """
         Sentence Model
         :param data: [{"id": .., "company": .., "name": ...}]
@@ -162,16 +176,15 @@ class EmbeddingAI:
         :return: model_name
         """
         model_name = "sroberta_sts"
-        if model_name not in self.__sentence_models:
-            model = SentenceTransformer("jhgan/ko-sroberta-sts")
-            embedding = self.__make_embedding(model=model, data=data, model_name=model_name, clean=clean)
-            self.__sentence_models[model_name] = (model, embedding)
-            self.logger.info(f"Save embedding for {model}")
-            self.save_embedding(model_name=model_name)
+        model = SentenceTransformer("jhgan/ko-sroberta-sts")
+        embedding = self.__make_embedding(model=model, data=data, model_name=model_name, clean=clean)
+        self.__sentence_models[model_name] = (model, embedding)
+        self.logger.info(f"Save embedding for {model}")
+        self.save(model_name=model_name)
         return model_name
 
     def __make_embedding(
-        self, model: SentenceTransformer, data: List["EmbeddingAI.Data"], model_name: str, clean: bool = False
+        self, model: SentenceTransformer, data: List["ModelBuilder.Data"], model_name: str, clean: bool = False
     ) -> List[Embedding]:
         """
         :param model: SentenceTransformer
@@ -197,21 +210,26 @@ class EmbeddingAI:
                 )
         return embeddings
 
-    def save_embedding(self, model_name: str) -> str:
+    def save(self, model_name: str) -> str:
         """
+        SearchModel 형식으로 Model과 Embeddings를 저장한다.
         :param model_name: 저장된 모델 이름
         :return: 저장 경로
         """
-        saved_path = self.get_embedding_path(model_name)
+        saved_path = self.get_model_path(model_name)
         if self.is_lexical_model(model_name):
-            embeddings: List[Embedding] = self.__lexical_models[model_name][1]
+            engine, embeddings = self.__lexical_models[model_name]
+            type_ = "lexical"
         elif self.is_sentence_model(model_name):
-            embeddings: List[Embedding] = self.__sentence_models[model_name][1]
+            engine, embeddings = self.__sentence_models[model_name]
+            type_ = "sentence"
         else:
             raise RuntimeError(f"{model_name} not in lexical or sentence models")
+
+        search_model = SearchModel(type=type_, engine=engine, embeddings=embeddings)
         with open(saved_path, "wb") as fd:
-            pickle.dump(embeddings, fd)
-        self.logger.info(f"embedding for {model_name} is saved at {saved_path}")
+            pickle.dump(search_model, fd)
+        self.logger.info(f"{model_name} is saved at {saved_path}")
         return str(saved_path)
 
     def get_embedding(self, model_name: str) -> List[Embedding]:
@@ -219,17 +237,20 @@ class EmbeddingAI:
         save_embedding으로 저장된 embedding 가져오기
         :return: embedded data
         """
-        path = self.get_embedding_path(model_name)
+        path = self.get_model_path(model_name)
         try:
             with open(path, "rb") as fd:
-                data = pickle.load(fd)
+                data: SearchModel = pickle.load(fd)
         except Exception as e:
-            raise RuntimeError(e)
+            self.logger.info(f"{model_name} wasn't saved")
+            return []
         else:
-            self.logger.info(f"Load embedding for {model_name} from {path}")
-            return data
+            self.logger.info(f"Load {model_name} from {path}")
+            return data.embeddings
 
-    def get_model(self, model_name: str) -> Dict[Literal["type", "model"], Tuple[Any, List[Embedding]]]:
+    def get_model(
+        self, model_name: str
+    ) -> Dict[Literal["type", "model"], Union[Literal["lexical", "sentence"], Tuple[Any, List[Embedding]]]]:
         """
         model_name에 해당하는 모델의 타입과 모델 반환
         :returns: {"type": lexical|sentence, "model": ...}
@@ -245,5 +266,5 @@ class EmbeddingAI:
             raise RuntimeError(f"{model_name} is not lexical or sentence model")
         return result
 
-    def get_embedding_path(self, model_name: str) -> str:
-        return str(self.__embedding_dir / f"{model_name}.pickle")
+    def get_model_path(self, model_name: str) -> str:
+        return str(self.__model_dir / f"{model_name}.pickle")

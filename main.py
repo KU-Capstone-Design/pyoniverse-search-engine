@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 
-from lib.config import get_settings
+from lib.config import Settings
 from lib.view import embedding, search
 
 
-settings = get_settings()
+settings = Settings()
 
 app = FastAPI(
     title=settings.app_name,
