@@ -1,83 +1,88 @@
-from sentence_transformers import CrossEncoder
+import logging
+from collections import namedtuple
+from typing import List, Literal
+
+import numpy as np
+from rank_bm25 import BM25Okapi
+from sentence_transformers import CrossEncoder, SentenceTransformer
+
+from lib.ai.model.embedding import SearchModel
+from lib.ai.model.search import SearchResponseDto
 
 
 class SearchAI:
-    __cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1")
+    Data = namedtuple("Data", ["id", "name", "score"])
 
-    def __init__(
-        self,
-        model_name,
-    ):
+    def __init__(self, version: Literal["v1"], models: List[SearchModel], cross_encoder: CrossEncoder):
         """
-        :param model_type: lexical or sentence model(검색 방식이 달라진다)
-        :param model: EmbeddingAI로 생성된 모델
-        :param model_name: 모델 이름
+        :param models 사용 가능한 검색 모델 리스트
         """
         self.logger = logging.getLogger(__name__)
-        self.__model_name = model_name
-        self.__model_type = model_type
+        self.__models = models
+        self.__cross_encoder = cross_encoder
+        assert isinstance(self.__cross_encoder, CrossEncoder)
+        self.__version = version
+        assert self.__version in {"v1"}
 
-    def __load_corpus(self, path: str):
-        path = Path(path)
-        if not path.exists():
-            raise RuntimeError(f"{path} Not Found")
-        if not path.is_file():
-            raise RuntimeError(f"{path} Not File")
-        if path.suffix != ".npy":
-            raise RuntimeError(f"{path} should be npy format")
-        try:
-            corpus = np.load(str(path), allow_pickle=True)
-        except Exception as e:
-            self.logger.error(traceback.format_exc())
-            raise RuntimeError(f"{path} Load Failed")
-        return corpus
+    def search(self, query: str, limit: float = 0.5) -> SearchResponseDto:
+        """
+        :param query: 검색어
+        :param limit: 반환할 결과의 최소 정확도
+        :return: SearchResponseDto
+        """
+        data: List[SearchAI.Data] = []
+        for model in self.__models:
+            if model.type == "lexical":
+                data += self.__search_with_lexical(model=model, query=query, limit=limit)
+            elif model.type == "sentence":
+                data += self.__search_with_sentence(model=model, query=query, limit=limit)
+            else:
+                self.logger.info(f"{model.type} isn't supported")
+        results = self.__ansible(query=query, data=data)
+        response = SearchResponseDto(version=self.__version, engine_type="ML", results=[r.id for r in results])
+        return response
 
-    #
-    # def search(self, query: str, limit: float = 0.5) -> List[dict]:
-    #     """
-    #     :param query: 검색어
-    #     :param limit: 반환할 결과의 최소 정확도
-    #     :return: [{"name": ..., "id": ..., "accuracy": ...}]
-    #     """
-    #     if self.__model_type == "lexical":
-    #         results = self.search_with_lexical(query=query, limit=limit)
-    #     elif self.__model_type == "sentence":
-    #         results = self.search_with_sentence(query=query, limit=limit)
-    #     else:
-    #         raise RuntimeError(f"{self.__model_type} Not Supported")
-    #     return results
-    #
-    # def search_with_sentence(self, query: str, limit: float) -> List[dict]:
-    #     query_embedding = self.__model.encode(query)
-    #     result = []
-    #     for instance in self.__corpus:
-    #         score = np.dot(query_embedding, instance["embedding"])
-    #         result.append({"score": score, "id": instance["id"], "name": instance["name"]})
-    #
-    #     result = sorted(result, key=(lambda x: x["score"]), reverse=True)
-    #     result = list(filter(lambda x: x["score"] >= limit, result))
-    #     return result
-    #
-    # def search_with_lexical(self, query: str, limit: float) -> List[dict]:
-    #     tokenized_query = query.split(" ")
-    #     # corpus 순서대로 스코어 반환
-    #     scores = self.__model.get_scores(tokenized_query)
-    #     result = []
-    #     for score, datum in zip(scores, self.__corpus):
-    #         if score >= limit:
-    #             result.append({"score": score, "id": datum["id"], "name": datum["name"]})
-    #     return sorted(result, key=lambda x: x["score"], reverse=True)
-    #
-    # @classmethod
-    # def ansible(cls, query: str, data: List[dict], limit: float = 0.5) -> List[dict]:
-    #     """
-    #     여러 모델의 검색 결과를 하나로 합쳐 가장 높은 유사도를 찾는다.
-    #     :param results: [{"score": ..., "id": ..., "name": ...}]
-    #     :param limit: 최하 유사도
-    #     :return: [{"score": ..., "id": ..., "name": ...}]
-    #     """
-    #     scores = cls.__cross_encoder.predict([[query, d["name"]] for d in data])
-    #     for d, s in zip(data, scores):
-    #         d["score"] = s
-    #     result = sorted(filter(lambda x: x["score"] >= limit, data), key=lambda x: x["score"], reverse=True)
-    #     return result
+    def __search_with_sentence(self, model: SearchModel, query: str, limit: float) -> List["SearchAI.Data"]:
+        engine: SentenceTransformer = model.engine
+        encoded_query = engine.encode(query)
+        if norm := np.linalg.norm(encoded_query):
+            encoded_query = encoded_query / norm
+        else:
+            encoded_query = np.zeros_like(encoded_query)
+        result: List[SearchAI.Data] = []
+        for e in model.embeddings:
+            if norm := np.linalg.norm(e.embedding):
+                normalized_embedding = e.embedding / norm
+            else:
+                normalized_embedding = np.zeros_like(e.embedding)
+            score = np.dot(encoded_query, normalized_embedding)
+            result.append(SearchAI.Data(score=score, id=e.id, name=e.name))
+
+        result = sorted(result, key=(lambda x: x.score), reverse=True)
+        result = list(filter(lambda x: x.score >= limit, result))
+        return result
+
+    def __search_with_lexical(self, model: SearchModel, query: str, limit: float) -> List["SearchAI.Data"]:
+        engine: BM25Okapi = model.engine
+        tokenized_query = query.split(" ")
+        # corpus 순서대로 스코어 반환
+        scores = engine.get_scores(tokenized_query)
+        result: List[SearchAI.Data] = []
+        for score, e in zip(scores, model.embeddings):
+            if score >= limit:
+                result.append(SearchAI.Data(score=score, id=e.id, name=e.name))
+        return sorted(result, key=lambda x: x.score, reverse=True)
+
+    def __ansible(self, query: str, data: List["SearchAI.Data"], limit: float = 0.5) -> List["SearchAI.Data"]:
+        """
+        여러 모델의 검색 결과를 하나로 합쳐 가장 높은 유사도를 찾는다.
+        :param results: [{"score": ..., "id": ..., "name": ...}]
+        :param limit: 최하 유사도
+        :return: [{"score": ..., "id": ..., "name": ...}]
+        """
+        scores = self.__cross_encoder.predict([[query, d.name] for d in data])
+        result: List[SearchAI.Data] = []
+        for d, score in zip(data, scores):
+            if score >= limit:
+                result.append(SearchAI.Data(score=score, id=d.id, name=d.name))
+        return sorted(result, key=lambda x: x.score, reverse=True)
