@@ -10,7 +10,7 @@ MAX_RETRIES=10  # 최대 재시도 횟수
 retries=0
 
 while true; do
-    response=$(curl -s --max-time 20 -o /dev/null -w "%{http_code}" $URL)
+    response=$(curl -X GET --max-time 1800 -s -o /dev/null -w "%{http_code}" $URL)
 
     if [ "$response" -eq 200 ]; then
         echo "OK"
@@ -24,7 +24,7 @@ while true; do
             echo "Exceed ($MAX_RETRIES). End script"
             exit 1
         fi
-
+        sleep 10
         echo "Retry ($retries/$MAX_RETRIES)"
     fi
 done
