@@ -5,13 +5,12 @@ sleep 10
 
 # Model Download & Embedding 실시
 URL=http://localhost:7777/dev/v1/embedding/reload
-MAX_RETRIES=180  # 최대 재시도 횟수
-RETRY_INTERVAL=20  # 재시도 간격 (초)
+MAX_RETRIES=200  # 최대 재시도 횟수
 
 retries=0
 
 while true; do
-    response=$(curl -X POST -s -o /dev/null -w "%{http_code}" $URL)
+    response=$(curl -X POST --max-time 20 -s -o /dev/null -w "%{http_code}" $URL)
 
     if [ "$response" -eq 200 ]; then
         echo "OK"
@@ -27,6 +26,5 @@ while true; do
         fi
 
         echo "Retry ($retries/$MAX_RETRIES)"
-        sleep $RETRY_INTERVAL
     fi
 done

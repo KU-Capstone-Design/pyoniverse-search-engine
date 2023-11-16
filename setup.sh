@@ -5,13 +5,12 @@ sleep 10
 
 # Model Download & Embedding 실시
 URL=http://localhost:7777/ping
-MAX_RETRIES=60  # 최대 재시도 횟수
-RETRY_INTERVAL=20  # 재시도 간격 (초)
+MAX_RETRIES=10  # 최대 재시도 횟수
 
 retries=0
 
 while true; do
-    response=$(curl -s -o /dev/null -w "%{http_code}" $URL)
+    response=$(curl -s --max-time 20 -o /dev/null -w "%{http_code}" $URL)
 
     if [ "$response" -eq 200 ]; then
         echo "OK"
@@ -27,6 +26,5 @@ while true; do
         fi
 
         echo "Retry ($retries/$MAX_RETRIES)"
-        sleep $RETRY_INTERVAL
     fi
 done
