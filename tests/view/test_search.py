@@ -11,6 +11,7 @@ while "tests" not in os.listdir():
     os.chdir("..")
 
 os.environ["STAGE"] = "test"
+os.environ["MODEL_DIR"] = "tests/resource/model"
 
 
 def test_search():
