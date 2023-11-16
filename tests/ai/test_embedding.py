@@ -10,7 +10,7 @@ from pymongo import MongoClient, ReadPreference
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
-from lib.ai.embedding import ModelBuilder
+from lib.ai.builder import ModelBuilder
 from lib.ai.model.embedding import EmbeddingResponseDto, SearchModel
 from tests.util import not_raises
 
