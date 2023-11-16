@@ -36,9 +36,5 @@ RUN chmod +x ./embedding.sh && ./embedding.sh
 RUN apt-get remove curl -y && apt-get clean
 RUN rm setup.sh embedding.sh
 
-# download models
-ENTRYPOINT ["bash"]
-
-#
-#ENTRYPOINT ["uvicorn", "main:app"]
-#CMD ["--port=7777", "--host=0.0.0.0"]
+ENTRYPOINT ["uvicorn", "main:app"]
+CMD ["--port=7777", "--host=0.0.0.0"]
