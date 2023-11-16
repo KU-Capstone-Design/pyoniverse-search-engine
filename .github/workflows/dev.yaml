@@ -30,8 +30,8 @@ jobs:
       - name: Setup env
         shell: bash
         run: |
-          echo "MONGO_URI={{ secrets.MONGO_URI }}" >> .env
-          echo "MONGO_DB={{ secrets.MONGO_SERVICE_DB_DEV }}" >> .env
+          echo "MONGO_URI=${{ secrets.MONGO_URI }}" >> .env
+          echo "MONGO_DB=${{ secrets.MONGO_SERVICE_DB_DEV }}" >> .env
           echo "STAGE=dev" >> .env
 
       - name: Build and Push
