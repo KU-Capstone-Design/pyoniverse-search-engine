@@ -1,0 +1,8 @@
+# Configuration
+python-dotenv
+pydantic-settings
+# API
+fastapi
+uvicorn
+# DB
+pymongo

@@ -17,3 +17,8 @@ app.include_router(
     tags=["search"],
 )
 app.include_router(embedding.router, prefix=f"/{settings.stage}/{settings.version}/embedding", tags=["embedding"])
+
+
+@app.get("/ping")
+def ping() -> str:
+    return "ok"
