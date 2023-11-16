@@ -10,7 +10,7 @@ from pymongo.errors import ConfigurationError
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
-from lib.ai.model.common import Embedding, EmbeddingResponseDto, ModelMeta
+from lib.ai.model.embedding import Embedding, EmbeddingResponseDto, ModelMeta
 
 
 class EmbeddingAI:

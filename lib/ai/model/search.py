@@ -1,15 +1,12 @@
 """
 SearchAI에서만 사용하는 모델 정의
 """
-from dataclasses import dataclass, field
+from typing import List, Literal
+
+from pydantic import BaseModel
 
 
-@dataclass
-class SearchResult:
-    """
-    검색 결과
-    """
-
-    score: float = field()
-    id: int = field()
-    name: str = field()
+class SearchResponseDto(BaseModel):
+    version: str
+    engine_type: Literal["ML", "ALGORITHM"]
+    results: List[int]

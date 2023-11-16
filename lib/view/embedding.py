@@ -5,7 +5,7 @@ DB Products 데이터에 대한 임베딩 값을 설정하는 API Endpoint 관�
 from fastapi import APIRouter
 
 from lib.ai.embedding import EmbeddingAI
-from lib.ai.model.common import EmbeddingResponseDto
+from lib.ai.model.embedding import EmbeddingResponseDto
 from lib.config import get_settings
 from lib.view.model.api_response import ApiResponse
 
