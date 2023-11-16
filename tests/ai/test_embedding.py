@@ -1,123 +1,152 @@
-import json
 import os
+import pickle
 import re
 from pathlib import Path
 from typing import List
 
 import dotenv
 import pytest
+from pymongo import MongoClient, ReadPreference
+from rank_bm25 import BM25Okapi
+from sentence_transformers import SentenceTransformer
 
-from lib.ai.embedding import EmbeddingAI
+from lib.ai.embedding import ModelBuilder
+from lib.ai.model.embedding import EmbeddingResponseDto, SearchModel
 from tests.util import not_raises
 
 
-@pytest.fixture
-def env():
-    while "tests" not in os.listdir():
-        os.chdir("..")
-    dotenv.load_dotenv()
+while "tests" not in os.listdir():
+    os.chdir("..")
+dotenv.load_dotenv()
+os.environ["MONGO_DB"] = "test"
 
 
-def test_init(env):
+def test_init():
     # given
     with not_raises(RuntimeError):
-        EmbeddingAI(embedding_dir="tests/resource/embedding")
+        ModelBuilder(db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model")
+        ModelBuilder(
+            db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/create-new-folder"
+        )
+    os.rmdir("tests/resource/create-new-folder")
 
-
-def test_init_embedding_dir(env):
-    with not_raises(RuntimeError):
-        EmbeddingAI(embedding_dir="tests/resource/embedding")
-        EmbeddingAI(embedding_dir="tests/resource/create-new-folder")
-
-
-def test_init_embedding_dir_invalid(env):
     with pytest.raises(RuntimeError):
-        EmbeddingAI(embedding_dir="tests/resource/data/products.json")
+        ModelBuilder(db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model")
+        ModelBuilder(db_uri=os.getenv("MONGO_URI"), model_dir="tests/resource/model")
 
 
-def test_preprocess_data(env):
+def test_preprocess_data():
     # given
-    with open("tests/resource/data/products.json", "r") as fd:
-        data = json.load(fd)
-    embedding_ai = EmbeddingAI()
+    builder = ModelBuilder(
+        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+    )
+    db = MongoClient(os.getenv("MONGO_URI")).get_database(
+        os.getenv("MONGO_DB"), read_preference=ReadPreference.SECONDARY_PREFERRED
+    )
+    data = db["products"].find(projection={"id": True, "name": True, "_id": False})
     id_name_map = {d["id"]: d["name"] for d in data}
     # when
-    response: List[EmbeddingAI.Data] = embedding_ai.preprocess_data()
+    response: List[ModelBuilder.Data] = builder.preprocess_data()
     # then
     for r in response:
         assert re.sub(r"\s", "", id_name_map[r.id]) == re.sub(r"\s", "", r.name)
 
 
-def test_get_bm250k_model(env):
+def test_make_bm250k_model():
     # given
-    embedding_ai = EmbeddingAI()
+    builder = ModelBuilder(
+        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+    )
     # when
-    data = embedding_ai.preprocess_data()
-    model_name = embedding_ai.get_bm250k_model(data)
+    data = builder.preprocess_data()
+    model_name = builder.make_bm250k_model(data)
     # then
-    model_info = embedding_ai.get_model(model_name)
-    assert embedding_ai.is_lexical_model(model_name)
+    model_info = builder.get_model(model_name)
+    assert builder.is_lexical_model(model_name)
     assert model_info["type"] == "lexical"
     assert set(d.name for d in data) == set(c.name for c in model_info["model"][1])
 
 
-def test_get_sroberta_multitask_model(env):
+def test_make_sroberta_multitask_model():
     # given
-    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
+    builder = ModelBuilder(
+        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+    )
     # when
-    data = embedding_ai.preprocess_data()
-    model_name = embedding_ai.get_sroberta_multitask_model(data)
+    data = builder.preprocess_data()
+    model_name = builder.make_sroberta_multitask_model(data)
     # then
-    model_info = embedding_ai.get_model(model_name)
-    assert embedding_ai.is_sentence_model(model_name)
+    model_info = builder.get_model(model_name)
+    assert builder.is_sentence_model(model_name)
     assert model_info["type"] == "sentence"
     assert set(d.id for d in data) == set(e.id for e in model_info["model"][1])
 
 
-def test_sroberta_sts_model(env):
+def test_make_sroberta_sts_model():
     # given
-    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
+    builder = ModelBuilder(
+        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+    )
     # when
-    data = embedding_ai.preprocess_data()
-    model_name = embedding_ai.get_sroberta_sts_model(data)
+    data = builder.preprocess_data()
+    model_name = builder.make_sroberta_sts_model(data)
     # then
-    model_info = embedding_ai.get_model(model_name)
-    assert embedding_ai.is_sentence_model(model_name)
+    model_info = builder.get_model(model_name)
+    assert builder.is_sentence_model(model_name)
     assert model_info["type"] == "sentence"
     assert set(d.id for d in data) == set(e.id for e in model_info["model"][1])
 
 
-def test_save_embedding(env):
+def test_save_model():
     # given
-    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
-    data = embedding_ai.preprocess_data()
-    model_name = embedding_ai.get_sroberta_sts_model(data)
+    builder = ModelBuilder(
+        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+    )
+    data = builder.preprocess_data()
+    model_name = builder.make_sroberta_sts_model(data)
     # when
-    path = embedding_ai.save_embedding(model_name)
+    path = builder.save(model_name)
     # then
     assert Path(path).exists()
 
+    with open(path, "rb") as fd:
+        search_model: SearchModel = pickle.load(fd)
+    assert isinstance(search_model, SearchModel)
+    assert len(search_model.embeddings) > 0
+    assert search_model.type == "sentence"
+    assert isinstance(search_model.engine, SentenceTransformer)
 
-def test_save_embedding_invalid_model(env):
+
+def test_save_invalid_model():
     # given
-    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
+    builder = ModelBuilder(
+        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+    )
     # when & then
     with pytest.raises(RuntimeError):
-        embedding_ai.save_embedding("invalid")
+        builder.save("invalid")
 
 
-def test_embedding_integration(env):
+def test_builder_integration():
     # given
-    embedding_ai = EmbeddingAI(embedding_dir="tests/resource/embedding")
+    builder = ModelBuilder(
+        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+    )
     # when
-    result = embedding_ai.execute()
+    results: EmbeddingResponseDto = builder.execute()
     # then
-    for meta in result:
+    for meta in results.models:
         if meta.type == "lexical":
-            assert embedding_ai.is_lexical_model(meta.name)
-            assert Path(meta.embedding_path).exists()
+            assert builder.is_lexical_model(meta.name)
+            assert Path(meta.model_path).exists()
+            with open(meta.model_path, "rb") as fd:
+                search_model = pickle.load(fd)
+                assert isinstance(search_model.engine, BM25Okapi)
         elif meta.type == "sentence":
-            assert embedding_ai.is_sentence_model(meta.name)
-            assert Path(meta.embedding_path).exists()
+            assert builder.is_sentence_model(meta.name)
+            assert Path(meta.model_path).exists()
+            with open(meta.model_path, "rb") as fd:
+                search_model = pickle.load(fd)
+                assert isinstance(search_model.engine, SentenceTransformer)
         else:
             assert False
