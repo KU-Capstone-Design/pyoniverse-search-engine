@@ -4,32 +4,34 @@ from sentence_transformers import CrossEncoder
 class SearchAI:
     __cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1")
 
-    # def __init__(
-    #         self
-    # ):
-    #     """
-    #     :param model_type: lexical or sentence model(검색 방식이 달라진다)
-    #     :param model: EmbeddingAI로 생성된 모델
-    #     :param model_name: 모델 이름
-    #     """
-    #     self.logger = logging.getLogger(__name__)
-    #     self.__model_name = model_name
-    #     self.__model_type = model_type
-    #
-    # def __load_corpus(self, path: str):
-    #     path = Path(path)
-    #     if not path.exists():
-    #         raise RuntimeError(f"{path} Not Found")
-    #     if not path.is_file():
-    #         raise RuntimeError(f"{path} Not File")
-    #     if path.suffix != ".npy":
-    #         raise RuntimeError(f"{path} should be npy format")
-    #     try:
-    #         corpus = np.load(str(path), allow_pickle=True)
-    #     except Exception as e:
-    #         self.logger.error(traceback.format_exc())
-    #         raise RuntimeError(f"{path} Load Failed")
-    #     return corpus
+    def __init__(
+        self,
+        model_name,
+    ):
+        """
+        :param model_type: lexical or sentence model(검색 방식이 달라진다)
+        :param model: EmbeddingAI로 생성된 모델
+        :param model_name: 모델 이름
+        """
+        self.logger = logging.getLogger(__name__)
+        self.__model_name = model_name
+        self.__model_type = model_type
+
+    def __load_corpus(self, path: str):
+        path = Path(path)
+        if not path.exists():
+            raise RuntimeError(f"{path} Not Found")
+        if not path.is_file():
+            raise RuntimeError(f"{path} Not File")
+        if path.suffix != ".npy":
+            raise RuntimeError(f"{path} should be npy format")
+        try:
+            corpus = np.load(str(path), allow_pickle=True)
+        except Exception as e:
+            self.logger.error(traceback.format_exc())
+            raise RuntimeError(f"{path} Load Failed")
+        return corpus
+
     #
     # def search(self, query: str, limit: float = 0.5) -> List[dict]:
     #     """
