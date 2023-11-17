@@ -24,7 +24,7 @@ while true; do
             echo "Exceed ($MAX_RETRIES). End script"
             exit 1
         fi
-        sleep 10
+        sleep 30
         echo "Retry ($retries/$MAX_RETRIES)"
     fi
 done

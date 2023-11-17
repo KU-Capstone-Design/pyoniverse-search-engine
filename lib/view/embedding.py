@@ -10,7 +10,7 @@ from lib.view.model.api_response import ApiResponse
 
 
 router = APIRouter()
-model_builder: ModelBuilder = ModelBuilder.instance()
+model_builder = ModelBuilder.instance()
 
 
 @router.post("/reload", tags=["update"])
@@ -19,4 +19,5 @@ async def reload() -> ApiResponse[EmbeddingResponseDto]:
     Embedding 값을 업데이트
     """
     result = model_builder.execute()
+
     return ApiResponse[EmbeddingResponseDto].ok(result)
