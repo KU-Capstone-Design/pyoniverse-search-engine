@@ -4,6 +4,8 @@ from collections import namedtuple
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Tuple, Union
 
+import boto3
+from boto3_type_annotations.s3 import Client
 from pykospacing import Spacing
 from pymongo import MongoClient, ReadPreference, UpdateOne
 from pymongo.errors import ConfigurationError
@@ -26,10 +28,23 @@ class ModelBuilder:
     def instance(cls):
         if cls.__instance is None:
             settings = get_settings()
-            cls.__instance = cls(db_uri=settings.mongo_uri, db_name=settings.mongo_db, model_dir=settings.model_dir)
+            cls.__instance = cls(
+                db_uri=settings.mongo_uri,
+                db_name=settings.mongo_db,
+                model_dir=settings.model_dir,
+                bucket=settings.bucket,
+                bucket_key=settings.bucket_key,
+            )
         return cls.__instance
 
-    def __init__(self, db_uri: str = None, db_name: str = None, model_dir: str = "resource/model"):
+    def __init__(
+        self,
+        db_uri: str = None,
+        db_name: str = None,
+        model_dir: str = "resource/model",
+        bucket: str = None,
+        bucket_key: str = None,
+    ):
         self.logger = logging.getLogger(__name__)
         self.__lexical_models = {}
         self.__sentence_models = {}
@@ -46,6 +61,10 @@ class ModelBuilder:
         self.__db_name = db_name
         if not self.__db_name:
             raise RuntimeError(f"{self.__db_name} is empty")
+
+        assert bucket and bucket_key
+        self.__bucket = bucket
+        self.__bucket_key = bucket_key
 
     def execute(self, clean: bool = False) -> EmbeddingResponseDto:
         """
@@ -230,6 +249,14 @@ class ModelBuilder:
         with open(saved_path, "wb") as fd:
             pickle.dump(search_model, fd)
         self.logger.info(f"{model_name} is saved at {saved_path}")
+        client: Client = boto3.client("s3")
+        try:
+            client.upload_file(saved_path, self.__bucket, self.get_s3_model_key(model_name))
+            self.logger.info(
+                f"{model_name} is uploaded at " f"s3://{self.__bucket}/{self.get_s3_model_key(model_name)}"
+            )
+        except Exception as e:
+            raise RuntimeError(e)
         return str(saved_path)
 
     def get_embedding(self, model_name: str) -> List[Embedding]:
@@ -238,15 +265,22 @@ class ModelBuilder:
         :return: embedded data
         """
         path = self.get_model_path(model_name)
+        if not Path(path).exists():
+            self.logger.info(f"Download model from s3://{self.__bucket}/{self.get_s3_model_key(model_name)}")
+            client: Client = boto3.client("s3")
+            try:
+                client.download_file(self.__bucket, self.get_s3_model_key(model_name), self.get_model_path(model_name))
+            except Exception as e:
+                raise RuntimeError(e)
         try:
             with open(path, "rb") as fd:
-                data: SearchModel = pickle.load(fd)
+                model: SearchModel = pickle.load(fd)
+                self.logger.info(f"Load {model_name} from {path}")
+                data = model.embeddings
         except Exception as e:
             self.logger.info(f"{model_name} wasn't saved")
-            return []
-        else:
-            self.logger.info(f"Load {model_name} from {path}")
-            return data.embeddings
+            data = []
+        return data
 
     def get_model(
         self, model_name: str
@@ -268,3 +302,6 @@ class ModelBuilder:
 
     def get_model_path(self, model_name: str) -> str:
         return str(self.__model_dir / f"{model_name}.pickle")
+
+    def get_s3_model_key(self, model_name: str) -> str:
+        return f"{self.__bucket_key}/{model_name}.pickle"
