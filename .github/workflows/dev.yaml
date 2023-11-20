@@ -47,7 +47,9 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:${{ env.STAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: AWS_ACCESS_KEY_ID=${{ env.AWS_ACCESS_KEY_ID}},AWS_SECRET_ACCESS_KEY=${{env.AWS_SECRET_ACCESS_KEY}}
+          build-args: |
+            AWS_ACCESS_KEY_ID=${{ env.AWS_ACCESS_KEY_ID}}
+            AWS_SECRET_ACCESS_KEY=${{env.AWS_SECRET_ACCESS_KEY}}
 
       - name: Deploy Alarm
         uses: 8398a7/action-slack@v3
