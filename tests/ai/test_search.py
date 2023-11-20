@@ -2,6 +2,7 @@ import logging
 import os
 import time
 
+import dotenv
 from sentence_transformers import CrossEncoder
 
 from lib.ai.loader import ModelLoader
@@ -11,7 +12,7 @@ from lib.ai.search import SearchAI
 
 while "tests" not in os.listdir():
     os.chdir("..")
-
+dotenv.load_dotenv()
 os.environ["MONGO_DB"] = "test"
 
 
@@ -19,7 +20,9 @@ def test_search():
     # given
     search_model = SearchAI(
         version="v1",
-        loader=ModelLoader(model_dir="tests/resource/model"),
+        loader=ModelLoader(
+            model_dir="tests/resource/model", bucket=os.getenv("BUCKET"), bucket_key=os.getenv("BUCKET_KEY")
+        ),
         cross_encoder=CrossEncoder("bongsoo/kpf-cross-encoder-v1"),
     )
     query = "우유"

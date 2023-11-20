@@ -99,6 +99,10 @@ class ModelBuilder:
         ]
         return EmbeddingResponseDto(models=result)
 
+    @classmethod
+    def clean(cls):
+        cls.__instance = None
+
     def is_lexical_model(self, model_name: str) -> bool:
         """
         :param model_name: get_...로 반환되는 key
@@ -213,16 +217,20 @@ class ModelBuilder:
         """
         self.logger.info(f"Load embedding for {model}")
         try:
-            embeddings = self.get_embedding(model_name=model_name)
+            # embeddings = self.get_embedding(model_name=model_name)
+            embeddings = []
         except Exception as e:
             embeddings = []
         self.logger.info(f"Make embedding for {model}")
         already_embedded = set(e.id for e in embeddings)
         for datum in data:
             if clean or datum.id not in already_embedded:
+                encoded = model.encode(
+                    datum.name, show_progress_bar=False, batch_size=1, convert_to_tensor=True, normalize_embeddings=True
+                )
                 embeddings.append(
                     Embedding(
-                        embedding=model.encode(datum.name),
+                        embedding=encoded,
                         id=datum.id,
                         name=datum.name,
                     )

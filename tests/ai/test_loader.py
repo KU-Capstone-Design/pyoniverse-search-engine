@@ -16,7 +16,9 @@ dotenv.load_dotenv()
 
 def test_loader():
     # given
-    loader = ModelLoader(model_dir="tests/resource/model")
+    loader = ModelLoader(
+        model_dir="tests/resource/model", bucket=os.getenv("BUCKET"), bucket_key=os.getenv("BUCKET_KEY")
+    )
     # when
     models: List[SearchModel] = loader.load()
     # then
@@ -28,7 +30,7 @@ def test_loader():
 
 def test_loader_invalid_dir():
     with pytest.raises(RuntimeError):
-        ModelLoader(model_dir="tests/resource/invalid")
+        ModelLoader(model_dir="tests/resource/invalid", bucket=os.getenv("BUCKET"), bucket_key=os.getenv("BUCKET_KEY"))
 
 
 def test_loader_empty_dir():
@@ -36,6 +38,8 @@ def test_loader_empty_dir():
     if Path(empty_path).exists():
         os.rmdir(empty_path)
     os.mkdir(empty_path)
-    loader = ModelLoader(model_dir="tests/resource/empty")
+    loader = ModelLoader(
+        model_dir="tests/resource/empty", bucket=os.getenv("BUCKET"), bucket_key=os.getenv("BUCKET_KEY")
+    )
     with pytest.raises(RuntimeError):
         loader.load()

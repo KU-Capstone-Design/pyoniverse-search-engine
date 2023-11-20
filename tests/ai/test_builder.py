@@ -24,9 +24,19 @@ os.environ["MONGO_DB"] = "test"
 def test_init():
     # given
     with not_raises(RuntimeError):
-        ModelBuilder(db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model")
         ModelBuilder(
-            db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/create-new-folder"
+            db_uri=os.getenv("MONGO_URI"),
+            db_name=os.getenv("MONGO_DB"),
+            model_dir="tests/resource/model",
+            bucket=os.getenv("BUCKET"),
+            bucket_key=os.getenv("BUCKET_KEY"),
+        )
+        ModelBuilder(
+            db_uri=os.getenv("MONGO_URI"),
+            db_name=os.getenv("MONGO_DB"),
+            model_dir="tests/resource/create-new-folder",
+            bucket=os.getenv("BUCKET"),
+            bucket_key=os.getenv("BUCKET_KEY"),
         )
     os.rmdir("tests/resource/create-new-folder")
 
@@ -38,7 +48,11 @@ def test_init():
 def test_preprocess_data():
     # given
     builder = ModelBuilder(
-        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+        db_uri=os.getenv("MONGO_URI"),
+        db_name=os.getenv("MONGO_DB"),
+        model_dir="tests/resource/model",
+        bucket=os.getenv("BUCKET"),
+        bucket_key=os.getenv("BUCKET_KEY"),
     )
     db = MongoClient(os.getenv("MONGO_URI")).get_database(
         os.getenv("MONGO_DB"), read_preference=ReadPreference.SECONDARY_PREFERRED
@@ -55,7 +69,11 @@ def test_preprocess_data():
 def test_make_bm250k_model():
     # given
     builder = ModelBuilder(
-        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+        db_uri=os.getenv("MONGO_URI"),
+        db_name=os.getenv("MONGO_DB"),
+        model_dir="tests/resource/model",
+        bucket=os.getenv("BUCKET"),
+        bucket_key=os.getenv("BUCKET_KEY"),
     )
     # when
     data = builder.preprocess_data()
@@ -70,7 +88,11 @@ def test_make_bm250k_model():
 def test_make_sroberta_multitask_model():
     # given
     builder = ModelBuilder(
-        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+        db_uri=os.getenv("MONGO_URI"),
+        db_name=os.getenv("MONGO_DB"),
+        model_dir="tests/resource/model",
+        bucket=os.getenv("BUCKET"),
+        bucket_key=os.getenv("BUCKET_KEY"),
     )
     # when
     data = builder.preprocess_data()
@@ -85,7 +107,11 @@ def test_make_sroberta_multitask_model():
 def test_make_sroberta_sts_model():
     # given
     builder = ModelBuilder(
-        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+        db_uri=os.getenv("MONGO_URI"),
+        db_name=os.getenv("MONGO_DB"),
+        model_dir="tests/resource/model",
+        bucket=os.getenv("BUCKET"),
+        bucket_key=os.getenv("BUCKET_KEY"),
     )
     # when
     data = builder.preprocess_data()
@@ -100,7 +126,11 @@ def test_make_sroberta_sts_model():
 def test_save_model():
     # given
     builder = ModelBuilder(
-        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+        db_uri=os.getenv("MONGO_URI"),
+        db_name=os.getenv("MONGO_DB"),
+        model_dir="tests/resource/model",
+        bucket=os.getenv("BUCKET"),
+        bucket_key=os.getenv("BUCKET_KEY"),
     )
     data = builder.preprocess_data()
     model_name = builder.make_sroberta_sts_model(data)
@@ -120,7 +150,11 @@ def test_save_model():
 def test_save_invalid_model():
     # given
     builder = ModelBuilder(
-        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+        db_uri=os.getenv("MONGO_URI"),
+        db_name=os.getenv("MONGO_DB"),
+        model_dir="tests/resource/model",
+        bucket=os.getenv("BUCKET"),
+        bucket_key=os.getenv("BUCKET_KEY"),
     )
     # when & then
     with pytest.raises(RuntimeError):
@@ -130,7 +164,11 @@ def test_save_invalid_model():
 def test_builder_integration():
     # given
     builder = ModelBuilder(
-        db_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB"), model_dir="tests/resource/model"
+        db_uri=os.getenv("MONGO_URI"),
+        db_name=os.getenv("MONGO_DB"),
+        model_dir="tests/resource/model",
+        bucket=os.getenv("BUCKET"),
+        bucket_key=os.getenv("BUCKET_KEY"),
     )
     # when
     results: EmbeddingResponseDto = builder.execute()

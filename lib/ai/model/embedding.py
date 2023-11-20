@@ -2,9 +2,8 @@
 EmbeddingAI, SearchAI에서 공통으로 사용하는 Data Model 정의
 """
 from dataclasses import dataclass, field
-from typing import Any, List, Literal, Union
+from typing import Any, List, Literal
 
-from numpy.core._multiarray_umath import ndarray
 from pydantic import BaseModel, ConfigDict
 
 
@@ -16,7 +15,7 @@ class Embedding:
 
     id: int = field()
     name: str = field()
-    embedding: Union[str, ndarray] = field()
+    embedding: Any = field()
 
 
 @dataclass

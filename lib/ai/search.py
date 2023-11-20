@@ -6,6 +6,7 @@ import numpy as np
 from fastapi import HTTPException
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder, SentenceTransformer
+from sentence_transformers.util import dot_score
 
 from lib.ai.loader import ModelLoader
 from lib.ai.model.embedding import SearchModel
@@ -28,18 +29,18 @@ class SearchAI:
         if cls.__instance is None:
             settings = get_settings()
             loader = ModelLoader.instance()
-            cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1")
-            cls.__instance = cls(version=settings.version, loader=loader, cross_encoder=cross_encoder)
+            # cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1")
+            cls.__instance = cls(version=settings.version, loader=loader)
         return cls.__instance
 
-    def __init__(self, version: Literal["v1"], loader: ModelLoader, cross_encoder: CrossEncoder):
+    def __init__(self, version: Literal["v1"], loader: ModelLoader, cross_encoder: CrossEncoder = None):
         """
         :param models 사용 가능한 검색 모델 리스트
         """
         self.logger = logging.getLogger(__name__)
         self.__models: List[SearchModel] = loader.load()
-        self.__cross_encoder = cross_encoder
-        assert isinstance(self.__cross_encoder, CrossEncoder)
+        # self.__cross_encoder = cross_encoder
+        # assert isinstance(self.__cross_encoder, CrossEncoder)
         self.__version = version
         assert self.__version in {"v1"}
 
@@ -59,11 +60,13 @@ class SearchAI:
         for model in self.__models:
             if model.type == "lexical":
                 data += self._search_with_lexical(model=model, query=query, limit=limit)
-            elif model.type == "sentence":
+                break
+        for model in self.__models:
+            if model.type == "sentence":
                 data += self._search_with_sentence(model=model, query=query, limit=limit)
-            else:
-                self.logger.info(f"{model.type} isn't supported")
-        results = self.__ansible(query=query, data=data)
+                break
+        # results = self.__ansible(query=query, data=data)
+        results = data
         if not results:
             raise HTTPException(status_code=404, detail="Empty Result")
         response = SearchResponseDto(version=self.__version, engine_type="ML", results=[r.id for r in results])
@@ -71,18 +74,12 @@ class SearchAI:
 
     def _search_with_sentence(self, model: SearchModel, query: str, limit: float) -> List[SearchData]:
         engine: SentenceTransformer = model.engine
-        encoded_query = engine.encode(query)
-        if norm := np.linalg.norm(encoded_query):
-            encoded_query = encoded_query / norm
-        else:
-            encoded_query = np.zeros_like(encoded_query)
+        encoded_query = engine.encode(
+            query, show_progress_bar=False, normalize_embeddings=True, batch_size=1, convert_to_tensor=True
+        )
         result: List[SearchData] = []
         for e in model.embeddings:
-            if norm := np.linalg.norm(e.embedding):
-                normalized_embedding = e.embedding / norm
-            else:
-                normalized_embedding = np.zeros_like(e.embedding)
-            score = np.dot(encoded_query, normalized_embedding)
+            score = dot_score(encoded_query, e.embedding)
             result.append(SearchData(score=score, id=e.id, name=e.name))
 
         result = sorted(result, key=(lambda x: x.score), reverse=True)
@@ -107,7 +104,10 @@ class SearchAI:
         :param limit: 최하 유사도
         :return: [{"score": ..., "id": ..., "name": ...}]
         """
-        scores = self.__cross_encoder.predict([[query, d.name] for d in data])
+        scores = self.__cross_encoder.predict(
+            [[query, d.name] for d in data],
+            show_progress_bar=False,
+        )
         result: List[SearchData] = []
         for d, score in zip(data, scores):
             if score >= limit:

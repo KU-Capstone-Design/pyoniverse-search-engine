@@ -38,24 +38,32 @@ class ModelLoader:
         self.logger = logging.getLogger(__name__)
 
     def load(self) -> List[SearchModel]:
+        # 메모리 이슈로 sentence model 하나만 올린다.
         models: List[SearchModel] = []
-        resource: ServiceResource = boto3.resource("s3")
-        for file_obj in resource.Bucket(self.__bucket).objects.filter(Prefix=self.__bucket_key):
-            if file_obj.key.endswith(".pickle"):
-                saved_path = f"{self.__model_dir}/{file_obj.key.split('/')[-1]}"
-                self.logger.info(f"Download s3://{self.__bucket}/{file_obj.key} to {saved_path}")
-                resource.meta.client.download_file(Bucket=self.__bucket, Key=file_obj.key, Filename=saved_path)
-        for model_path in self.__model_dir.glob("*.pickle"):
-            try:
-                with open(model_path, "rb") as fd:
-                    model = pickle.load(fd)
-            except Exception as e:
-                self.logger.error(e)
-                raise RuntimeError(f"Cannot load {model_path}")
-            else:
-                if not isinstance(model, SearchModel):
-                    raise RuntimeError(f"{model_path} isn't SearchModel")
-                models.append(model)
+        for model_path in self.__model_dir.glob("sroberta_multitask.pickle"):
+            models.append(self.__unpickle(str(model_path)))
+            break
         if not models:
-            raise RuntimeError(f"Empty: {self.__model_dir}")
+            resource: ServiceResource = boto3.resource("s3")
+            for file_obj in resource.Bucket(self.__bucket).objects.filter(Prefix=self.__bucket_key):
+                if file_obj.key.endswith("sroberta_multitask.pickle"):
+                    saved_path = f"{self.__model_dir}/{file_obj.key.split('/')[-1]}"
+                    self.logger.info(f"Download s3://{self.__bucket}/{file_obj.key} to {saved_path}")
+                    resource.meta.client.download_file(Bucket=self.__bucket, Key=file_obj.key, Filename=saved_path)
+                    models.append(self.__unpickle(saved_path))
+                    break
+            if not models:
+                raise RuntimeError(f"Empty: {self.__model_dir}")
         return models
+
+    def __unpickle(self, model_path: str) -> SearchModel:
+        try:
+            with open(model_path, "rb") as fd:
+                model = pickle.load(fd)
+        except Exception as e:
+            self.logger.error(e)
+            raise RuntimeError(f"Cannot load {model_path}")
+        else:
+            if not isinstance(model, SearchModel):
+                raise RuntimeError(f"{model_path} isn't SearchModel")
+            return model
