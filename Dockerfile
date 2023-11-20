@@ -24,7 +24,7 @@ ARG AWS_ACCESS_KEY_ID
 ARG AWS_SECRET_ACCESS_KEY
 ENV AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
     AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-RUN apt-get update && apt-get install curl -y && chmod +x ./embedding.sh && ./embedding.sh && apt-get remove curl  \
+RUN apt-get update && apt-get install curl -y && chmod +x ./embedding.sh && ./embedding.sh && apt-get remove curl -y  \
     && rm -r resource
 
 CMD ["uvicorn", "main:app", "--port=7777", "--host=0.0.0.0"]
