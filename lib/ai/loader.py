@@ -1,5 +1,4 @@
 import logging
-import os
 import pickle
 from pathlib import Path
 from typing import List
@@ -8,7 +7,7 @@ import boto3
 from boto3_type_annotations.s3 import ServiceResource
 
 from lib.ai.model.embedding import SearchModel
-from lib.config import get_settings
+from lib.config import Settings, get_settings
 
 
 class ModelLoader:
@@ -21,27 +20,31 @@ class ModelLoader:
     @classmethod
     def instance(cls):
         if cls.__instance is None:
-            settings = get_settings()
-            cls.__instance = cls(model_dir=settings.model_dir)
+            settings: Settings = get_settings()
+            cls.__instance = cls(model_dir=settings.model_dir, bucket=settings.bucket, bucket_key=settings.bucket_key)
         return cls.__instance
 
-    def __init__(self, model_dir: str = "resource/model"):
-        assert model_dir
+    def __init__(self, bucket: str, bucket_key: str, model_dir: str = "resource/model"):
+        assert model_dir and bucket and bucket_key
         self.__model_dir = Path(model_dir)
         if not self.__model_dir.exists():
             self.__model_dir.mkdir(parents=True, exist_ok=True)
         if not self.__model_dir.is_dir():
             raise RuntimeError(f"{model_dir} isn't directory")
+
+        self.__bucket = bucket
+        self.__bucket_key = bucket_key
+
         self.logger = logging.getLogger(__name__)
 
     def load(self) -> List[SearchModel]:
         models: List[SearchModel] = []
         resource: ServiceResource = boto3.resource("s3")
-        for file_obj in resource.Bucket(os.getenv("BUCKET")).objects.filter(Prefix=os.getenv("BUCKET_KEY")):
+        for file_obj in resource.Bucket(self.__bucket).objects.filter(Prefix=self.__bucket_key):
             if file_obj.key.endswith(".pickle"):
                 saved_path = f"{self.__model_dir}/{file_obj.key.split('/')[-1]}"
-                self.logger.info(f"Download s3://{os.getenv('BUCKET')}/{file_obj.key} to {saved_path}")
-                resource.meta.client.download_file(Bucket=os.getenv("BUCKET"), Key=file_obj.key, Filename=saved_path)
+                self.logger.info(f"Download s3://{self.__bucket}/{file_obj.key} to {saved_path}")
+                resource.meta.client.download_file(Bucket=self.__bucket, Key=file_obj.key, Filename=saved_path)
         for model_path in self.__model_dir.glob("*.pickle"):
             try:
                 with open(model_path, "rb") as fd:
