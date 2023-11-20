@@ -15,3 +15,6 @@ httpx
 memory_profiler
 line_profiler
 matplotlib
+# boto3
+boto3_type_annotations==0.3.1
+boto3==1.29.3

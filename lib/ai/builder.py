@@ -1,9 +1,12 @@
 import logging
+import os
 import pickle
 from collections import namedtuple
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Tuple, Union
 
+import boto3
+from boto3_type_annotations.s3 import Client
 from pykospacing import Spacing
 from pymongo import MongoClient, ReadPreference, UpdateOne
 from pymongo.errors import ConfigurationError
@@ -230,6 +233,12 @@ class ModelBuilder:
         with open(saved_path, "wb") as fd:
             pickle.dump(search_model, fd)
         self.logger.info(f"{model_name} is saved at {saved_path}")
+        client: Client = boto3.client("s3")
+        key = f"{os.getenv('BUCKET_KEY')}/{model_name}.pickle"
+        try:
+            client.upload_file(saved_path, os.getenv("BUCKET"), key)
+        except Exception as e:
+            raise RuntimeError(e)
         return str(saved_path)
 
     def get_embedding(self, model_name: str) -> List[Embedding]:
