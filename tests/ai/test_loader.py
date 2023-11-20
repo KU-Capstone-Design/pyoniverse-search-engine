@@ -14,7 +14,7 @@ while "tests" not in os.listdir():
 dotenv.load_dotenv()
 
 
-def test_loader_sentence():
+def test_loader():
     # given
     loader = ModelLoader(model_dir="tests/resource/model")
     # when
