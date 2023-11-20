@@ -234,9 +234,11 @@ class ModelBuilder:
             pickle.dump(search_model, fd)
         self.logger.info(f"{model_name} is saved at {saved_path}")
         client: Client = boto3.client("s3")
-        key = f"{os.getenv('BUCKET_KEY')}/{model_name}.pickle"
         try:
-            client.upload_file(saved_path, os.getenv("BUCKET"), key)
+            client.upload_file(saved_path, os.getenv("BUCKET"), self.get_s3_model_key(model_name))
+            self.logger.info(
+                f"{model_name} is uploaded at " f"s3://{os.getenv('BUCKET')}/{self.get_s3_model_key(model_name)}"
+            )
         except Exception as e:
             raise RuntimeError(e)
         return str(saved_path)
@@ -247,15 +249,24 @@ class ModelBuilder:
         :return: embedded data
         """
         path = self.get_model_path(model_name)
+        if not Path(path).exists():
+            self.logger.info(f"Download model from s3://{os.getenv('BUCKET')}/{self.get_s3_model_key(model_name)}")
+            client: Client = boto3.client("s3")
+            try:
+                client.download_file(
+                    os.getenv("BUCKET"), self.get_s3_model_key(model_name), self.get_model_path(model_name)
+                )
+            except Exception as e:
+                raise RuntimeError(e)
         try:
             with open(path, "rb") as fd:
-                data: SearchModel = pickle.load(fd)
+                model: SearchModel = pickle.load(fd)
+                self.logger.info(f"Load {model_name} from {path}")
+                data = model.embeddings
         except Exception as e:
             self.logger.info(f"{model_name} wasn't saved")
-            return []
-        else:
-            self.logger.info(f"Load {model_name} from {path}")
-            return data.embeddings
+            data = []
+        return data
 
     def get_model(
         self, model_name: str
@@ -277,3 +288,6 @@ class ModelBuilder:
 
     def get_model_path(self, model_name: str) -> str:
         return str(self.__model_dir / f"{model_name}.pickle")
+
+    def get_s3_model_key(self, model_name: str) -> str:
+        return f"{os.getenv('BUCKET_KEY')}/{model_name}.pickle"
