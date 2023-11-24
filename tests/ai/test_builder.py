@@ -19,6 +19,8 @@ while "tests" not in os.listdir():
     os.chdir("..")
 dotenv.load_dotenv()
 os.environ["MONGO_DB"] = "test"
+os.environ["STAGE"] = "test"
+os.environ["BUCKET_KEY"] = "search-engine/test"
 
 
 def test_init():

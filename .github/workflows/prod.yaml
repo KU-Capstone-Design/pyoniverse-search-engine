@@ -1,13 +1,13 @@
 name: Deploy Batch
 on:
   push:
-    branches: [ develop ]
+    branches: [ prod ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      STAGE: dev
+      STAGE: prod
 
     steps:
       - name: Checkout
@@ -31,10 +31,10 @@ jobs:
         shell: bash
         run: |
           echo "MONGO_URI=${{ secrets.MONGO_URI }}" >> .env
-          echo "MONGO_DB=${{ secrets.MONGO_SERVICE_DB_DEV }}" >> .env
+          echo "MONGO_DB=${{ secrets.MONGO_SERVICE_DB_PROD }}" >> .env
           echo "STAGE=${{ env.STAGE }}" >> .env
           echo "BUCKET=${{ secrets.S3_TMP_BUCKET }}" >> .env
-          echo "BUCKET_KEY=${{ secrets.S3_DEV_KEY }}" >> .env
+          echo "BUCKET_KEY=${{ secrets.S3_PROD_KEY }}" >> .env
 
       - name: Build and Push
         uses: docker/build-push-action@v5

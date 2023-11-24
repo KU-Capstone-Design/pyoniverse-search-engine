@@ -1,6 +1,7 @@
 import os
 
 from fastapi.testclient import TestClient
+import dotenv
 
 from lib.ai.model.search import SearchResponseDto
 from lib.view.model.api_response import ApiResponse
@@ -9,9 +10,10 @@ from tests.view.test_model import not_raise
 
 while "tests" not in os.listdir():
     os.chdir("..")
-
+dotenv.load_dotenv()
+os.environ["MONGO_DB"] = "test"
 os.environ["STAGE"] = "test"
-os.environ["MODEL_DIR"] = "tests/resource/model"
+os.environ["BUCKET_KEY"] = "search-engine/test"
 
 
 def test_search():
