@@ -1,10 +1,11 @@
 #!/bin/bash
-
+# ./embedding.sh {stage-name}
+# Ex. ./embedding.sh dev
 uvicorn --port=7777 main:app&
 sleep 10
 
 # Model Download & Embedding 실시
-URL=http://localhost:7777/dev/v1/embedding/reload
+URL=http://localhost:7777/$1/v1/embedding/reload
 MAX_RETRIES=10  # 최대 재시도 횟수
 
 retries=0

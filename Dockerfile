@@ -22,9 +22,10 @@ COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 ARG AWS_ACCESS_KEY_ID
 ARG AWS_SECRET_ACCESS_KEY
+ARG STAGE
 ENV AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
     AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-RUN apt-get update && apt-get install curl -y && chmod +x ./embedding.sh && ./embedding.sh && apt-get remove curl -y  \
+RUN apt-get update && apt-get install curl -y && chmod +x ./embedding.sh && ./embedding.sh $STAGE && apt-get remove curl -y  \
     && rm -r resource
 
 CMD ["uvicorn", "main:app", "--port=7777", "--host=0.0.0.0"]
