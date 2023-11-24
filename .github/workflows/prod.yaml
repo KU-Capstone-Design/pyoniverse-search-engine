@@ -1,0 +1,66 @@
+name: Deploy Batch
+on:
+  push:
+    branches: [ prod ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      STAGE: prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Setup env
+        shell: bash
+        run: |
+          echo "MONGO_URI=${{ secrets.MONGO_URI }}" >> .env
+          echo "MONGO_DB=${{ secrets.MONGO_SERVICE_DB_PROD }}" >> .env
+          echo "STAGE=${{ env.STAGE }}" >> .env
+          echo "BUCKET=${{ secrets.S3_TMP_BUCKET }}" >> .env
+          echo "BUCKET_KEY=${{ secrets.S3_PROD_KEY }}" >> .env
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          DOCKER_IMAGE: pyoniverse-search-engine
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:${{ env.STAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            AWS_ACCESS_KEY_ID=${{ env.AWS_ACCESS_KEY_ID}}
+            AWS_SECRET_ACCESS_KEY=${{env.AWS_SECRET_ACCESS_KEY}}
+            STAGE=${{ env.STAGE }}
+
+      - name: Deploy Alarm
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: C05NYKY1KS6
+          author_name: Github Action
+          fields: repo,commit,message,author,took,workflow
+          mention: here
+          if_mention: failure,cancelled
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()

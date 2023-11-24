@@ -1,0 +1,20 @@
+# Static Analysis
+pre-commit
+# Configuration
+python-dotenv
+pydantic-settings
+# API
+fastapi
+uvicorn
+# DB
+pymongo
+# Test
+pytest
+httpx
+# Profile
+memory_profiler
+line_profiler
+matplotlib
+# boto3
+boto3_type_annotations==0.3.1
+boto3==1.29.3
