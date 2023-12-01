@@ -1,3 +1,23 @@
+# Static Analysis
+pre-commit
+# Configuration
+python-dotenv
+pydantic-settings
+# API
+fastapi
+uvicorn
+# DB
+pymongo
+# Test
+pytest
+httpx
+# Profile
+memory_profiler
+line_profiler
+matplotlib
+# boto3
+boto3_type_annotations==0.3.1
+boto3==1.29.3
 absl-py==2.0.0
 argument==1.4.0
 asttokens==2.0.5

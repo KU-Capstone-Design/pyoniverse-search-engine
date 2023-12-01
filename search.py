@@ -148,8 +148,8 @@ if __name__ == '__main__' :
     #    'sroberta_nli_embedding': sroberta_nli_embedding,
     #    'sroberta_sts_embedding': sroberta_sts_embedding,
     #}
-    print("make embedding")
-    make_embeddings(data_path='./data/products.json', root_save_path='./data')
+    #print("make embedding")
+    #make_embeddings(data_path='./data/products.json', root_save_path='./data')
 
     print("start test")
     item_search_module = Item_Search_Module(data_path='./data/products.json', embedding_paths=True)

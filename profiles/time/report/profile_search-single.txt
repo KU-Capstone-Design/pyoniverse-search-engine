@@ -1,0 +1,12 @@
+Wrote profile results to profile_search.py.lprof
+Timer unit: 1e-06 s
+
+Total time: 1.12926 s
+File: profiles/time/profile_search.py
+Function: search at line 29
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    29                                           @profile
+    30                                           def search(query: str = "떡"):
+    31         1    1129258.0    1e+06    100.0      return search_model.search(query)
