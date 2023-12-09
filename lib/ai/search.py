@@ -29,7 +29,7 @@ class SearchAI:
         if cls.__instance is None:
             settings = get_settings()
             loader = ModelLoader.instance()
-            # cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1")
+            cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1")
             cls.__instance = cls(version=settings.version, loader=loader)
         return cls.__instance
 
@@ -39,7 +39,7 @@ class SearchAI:
         """
         self.logger = logging.getLogger(__name__)
         self.__models: List[SearchModel] = loader.load()
-        # self.__cross_encoder = cross_encoder
+        self.__cross_encoder = cross_encoder
         # assert isinstance(self.__cross_encoder, CrossEncoder)
         self.__version = version
         assert self.__version in {"v1"}
@@ -61,16 +61,43 @@ class SearchAI:
             if model.type == "lexical":
                 data += self._search_with_lexical(model=model, query=query, limit=limit)
                 break
-        for model in self.__models:
-            if model.type == "sentence":
-                data += self._search_with_sentence(model=model, query=query, limit=limit)
-                break
+        #for model in self.__models:
+        #    if model.type == "sentence":
+        #        data += self._search_with_sentence(model=model, query=query, limit=limit)
+        #        break
+        
         # results = self.__ansible(query=query, data=data)
         results = data
-        if not results:
+
+        search_pairs = []
+        for instance in results :
+            search_pairs.append((query, instance.name))
+            search_pairs.append((instance.name, query))
+            search_pairs.append((self.make_template(query), self.make_template(instance.name)))
+            search_pairs.append((self.make_template(instance.name), self.make_template(query)))
+        scores = self.__cross_encoder.predict(search_pairs)
+
+        final_score = []
+        for i, instance in enumerate(results):
+            score = min(scores[i*4], scores[i*4+1], scores[i*4+2], scores[i*4+3])
+            instance.score = score
+            final_score.append({'score': score, 'searchData': instance})
+        score_name = sorted(final_score, key=(lambda x: x['score']), reverse=True)
+        
+        final_result = []
+        for i, intance in enumerate(score_name) :
+            score = intance['score']
+            if score < 0.15 : ## threshold
+                break
+            final_result.append(instance.id)
+
+        if not final_result:
             raise HTTPException(status_code=404, detail="Empty Result")
-        response = SearchResponseDto(version=self.__version, engine_type="ML", results=[r.id for r in results])
+        response = SearchResponseDto(version=self.__version, engine_type="ML", results=final_result)
         return response
+    
+    def make_template(self, word) :
+        return f'"{word}" 을(를) 구매한다.\n\n'
 
     def _search_with_sentence(self, model: SearchModel, query: str, limit: float) -> List[SearchData]:
         engine: SentenceTransformer = model.engine
