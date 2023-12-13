@@ -12,7 +12,7 @@ from lib.ai.model.search import SearchResponseDto
 from lib.config import get_settings
 
 
-@dataclass(frozen=True)
+@dataclass
 class SearchData:
     id: int
     name: str
