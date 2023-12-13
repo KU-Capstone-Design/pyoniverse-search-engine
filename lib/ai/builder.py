@@ -85,18 +85,19 @@ class ModelBuilder:
         self.logger.info("Build lexical model")
         model_name = self.make_bm250k_model(data)
         lexical_model_names.append(model_name)
-        self.logger.info("Build sentence model")
-        model_name = self.make_sroberta_sts_model(data, clean=clean)
-        sentence_model_names.append(model_name)
-        model_name = self.make_sroberta_multitask_model(data, clean=clean)
-        sentence_model_names.append(model_name)
+        # self.logger.info("Build sentence model")
+        # model_name = self.make_sroberta_sts_model(data, clean=clean)
+        # sentence_model_names.append(model_name)
+        # model_name = self.make_sroberta_multitask_model(data, clean=clean)
+        # sentence_model_names.append(model_name)
         result: List[ModelMeta] = []
         result += [
             ModelMeta(name=name, type="lexical", model_path=self.get_model_path(name)) for name in lexical_model_names
         ]
-        result += [
-            ModelMeta(name=name, type="sentence", model_path=self.get_model_path(name)) for name in sentence_model_names
-        ]
+        # result += [
+        #     ModelMeta(name=name, type="sentence", model_path=self.get_model_path(name))
+        #     for name in sentence_model_names
+        # ]
         return EmbeddingResponseDto(models=result)
 
     @classmethod
