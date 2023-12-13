@@ -76,7 +76,7 @@ class SearchAI:
             score = instance["score"]
             if score < 0.15:  # threshold
                 break
-            final_result.append(instance.id)
+            final_result.append(instance["searchData"].id)
 
         if not final_result:
             raise HTTPException(status_code=404, detail="Empty Result")
