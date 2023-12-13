@@ -47,12 +47,14 @@ class SearchAI:
         :param limit: 반환할 결과의 최소 정확도
         :return: SearchResponseDto
         """
-        data: List[SearchData] = []
+        results: List[SearchData] = []
         for model in self.__models:
             if model.type == "lexical":
-                data += self._search_with_lexical(model=model, query=query, limit=limit)
+                results += self._search_with_lexical(model=model, query=query, limit=limit)
                 break
-        results = data
+
+        if not results:
+            raise HTTPException(status_code=404, detail="Empty Result")
 
         search_pairs = []
         for instance in results:
