@@ -1,10 +1,12 @@
 import logging
+import re
 from dataclasses import dataclass
 from typing import List, Literal
 
 from fastapi import HTTPException
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
+from pykospacing import Spacing
 
 from lib.ai.loader import ModelLoader
 from lib.ai.model.embedding import SearchModel
@@ -28,16 +30,20 @@ class SearchAI:
             settings = get_settings()
             loader = ModelLoader.instance()
             cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1")
-            cls.__instance = cls(version=settings.version, loader=loader, cross_encoder=cross_encoder)
+            spacing = Spacing()
+            cls.__instance = cls(version=settings.version, loader=loader, cross_encoder=cross_encoder, spacing=spacing)
         return cls.__instance
 
-    def __init__(self, version: Literal["v1"], loader: ModelLoader, cross_encoder: CrossEncoder = None):
+    def __init__(
+        self, version: Literal["v1"], loader: ModelLoader, cross_encoder: CrossEncoder = None, spacing: Spacing = None
+    ):
         """
         :param models 사용 가능한 검색 모델 리스트
         """
         self.logger = logging.getLogger(__name__)
         self.__models: List[SearchModel] = loader.load()
         self.__cross_encoder = cross_encoder
+        self.__spacing = spacing
         self.__version = version
         assert self.__version in {"v1"}
 
@@ -47,6 +53,9 @@ class SearchAI:
         :param limit: 반환할 결과의 최소 정확도
         :return: SearchResponseDto
         """
+        # 1. query에서 공백 전부 제거
+        query = re.sub(r"\s+", "", query)
+        query = self.__spacing(query, ignore="none")
         results: List[SearchData] = []
         for model in self.__models:
             if model.type == "lexical":
