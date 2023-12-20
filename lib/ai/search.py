@@ -5,9 +5,9 @@ from functools import lru_cache
 from typing import List, Literal
 
 from fastapi import HTTPException
+from pykospacing import Spacing
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
-from pykospacing import Spacing
 
 from lib.ai.loader import ModelLoader
 from lib.ai.model.embedding import SearchModel
@@ -30,7 +30,7 @@ class SearchAI:
         if cls.__instance is None:
             settings = get_settings()
             loader = ModelLoader.instance()
-            cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1")
+            cross_encoder = CrossEncoder("bongsoo/kpf-cross-encoder-v1", max_length=128)
             spacing = Spacing()
             cls.__instance = cls(version=settings.version, loader=loader, cross_encoder=cross_encoder, spacing=spacing)
         return cls.__instance
@@ -106,4 +106,13 @@ class SearchAI:
         for score, e in zip(scores, model.embeddings):
             if score >= limit:
                 result.append(SearchData(score=score, id=e.id, name=e.name))
-        return sorted(result, key=lambda x: x.score, reverse=True)
+        lexical_res = sorted(result, key=lambda x: x.score, reverse=True)
+        # pattern match
+        query = re.sub(r"\s+", "", query)
+        pattern_res = list(
+            filter(
+                lambda x: re.search(query, re.sub(r"\s+", "", x.name), re.IGNORECASE) is not None,
+                map(lambda x: SearchData(score=0.7, id=x.id, name=x.name), model.embeddings),
+            )
+        )
+        return sorted(lexical_res + pattern_res, key=lambda x: x.score, reverse=True)

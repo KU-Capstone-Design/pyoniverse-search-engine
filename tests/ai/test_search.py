@@ -19,13 +19,16 @@ os.environ["BUCKET_KEY"] = "search-engine/test"
 
 
 def test_search():
+    from pykospacing import Spacing
+
     # given
     search_model = SearchAI(
         version="v1",
         loader=ModelLoader(
             model_dir="tests/resource/model", bucket=os.getenv("BUCKET"), bucket_key=os.getenv("BUCKET_KEY")
         ),
-        cross_encoder=CrossEncoder("bongsoo/kpf-cross-encoder-v1"),
+        cross_encoder=CrossEncoder("bongsoo/kpf-cross-encoder-v1", max_length=128),
+        spacing=Spacing(),
     )
     query = "우유"
     # when
