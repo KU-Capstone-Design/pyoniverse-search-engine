@@ -1,6 +1,7 @@
 import logging
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import List, Literal
 
 from fastapi import HTTPException
@@ -47,6 +48,7 @@ class SearchAI:
         self.__version = version
         assert self.__version in {"v1"}
 
+    @lru_cache(maxsize=512)
     def search(self, query: str, limit: float = 0.5) -> SearchResponseDto:
         """
         :param query: 검색어
