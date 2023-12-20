@@ -108,10 +108,10 @@ class SearchAI:
                 result.append(SearchData(score=score, id=e.id, name=e.name))
         lexical_res = sorted(result, key=lambda x: x.score, reverse=True)
         # pattern match
-        query = re.sub(r"\s+", "", query)
+        query = re.sub(r"\s+|\(|\)|\[|]|\{|}", "", query)
         pattern_res = list(
             filter(
-                lambda x: re.search(query, re.sub(r"\s+", "", x.name), re.IGNORECASE) is not None,
+                lambda x: re.search(query, re.sub(r"\s+|\(|\)|\[|]|\{|}", "", x.name), re.IGNORECASE) is not None,
                 map(lambda x: SearchData(score=0.7, id=x.id, name=x.name), model.embeddings),
             )
         )
