@@ -38,15 +38,15 @@ class ModelLoader:
         self.logger = logging.getLogger(__name__)
 
     def load(self) -> List[SearchModel]:
-        # 메모리 이슈로 sentence model 하나만 올린다.
+        # lexical model 로드
         models: List[SearchModel] = []
-        for model_path in self.__model_dir.glob("sroberta_multitask.pickle"):
+        for model_path in self.__model_dir.glob("bm250k.pickle"):
             models.append(self.__unpickle(str(model_path)))
             break
         if not models:
             resource: ServiceResource = boto3.resource("s3")
             for file_obj in resource.Bucket(self.__bucket).objects.filter(Prefix=self.__bucket_key):
-                if file_obj.key.endswith("sroberta_multitask.pickle"):
+                if file_obj.key.endswith("bm250k.pickle"):
                     saved_path = f"{self.__model_dir}/{file_obj.key.split('/')[-1]}"
                     self.logger.info(f"Download s3://{self.__bucket}/{file_obj.key} to {saved_path}")
                     resource.meta.client.download_file(Bucket=self.__bucket, Key=file_obj.key, Filename=saved_path)
